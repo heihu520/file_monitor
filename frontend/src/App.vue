@@ -12,7 +12,7 @@ const state = reactive({
   events: [],
   filterQuery: '',
   stats: { total: 0, create: 0, write: 0, remove: 0, rename: 0, folders: 0 },
-  disk: { total: '0 B', free: '0 B', Used: '0 B', freeBytes: 0, usage: 0 },
+  disk: { total: '0 B', free: '0 B', used: '0 B', freeBytes: 0, usage: 0 },
   insight: { totalSize: '0 B', fileCount: 0, dirCount: 0, categories: {}, extDetails: {} },
   topFiles: [],
   cleanupFiles: [],
@@ -171,11 +171,11 @@ const icons = {
         </div>
         <div class="disk-detail-grid">
           <div class="detail-item">
-            <span class="detail-label">已使用</span>
-            <span class="detail-value">{{ state.disk.Used || '0 B' }}</span>
+            <span class="detail-label">已使用空间</span>
+            <span class="detail-value">{{ state.disk.used || '0 B' }}</span>
           </div>
           <div class="detail-item">
-            <span class="detail-label">可用空间</span>
+            <span class="detail-label">可用剩余</span>
             <span class="detail-value">{{ state.disk.free || '0 B' }}</span>
           </div>
         </div>
@@ -263,7 +263,7 @@ const icons = {
           </div>
 
           <!-- 20+ 开发语言明细 -->
-          <div class="section-title" style="margin-top: 32px;">� 编程语言独立分布 (20+ 识别)</div>
+          <div class="section-title" style="margin-top: 32px;">💻 编程语言独立分布 (20+ 识别)</div>
           <div v-if="languageStats.length === 0" class="welcome-view" style="padding: 20px; font-size: 12px; height: auto;">未检测到主流开发代码资产</div>
           <div v-else class="extension-grid">
             <div v-for="item in languageStats" :key="item.ext" class="ext-chip">
@@ -272,15 +272,15 @@ const icons = {
             </div>
           </div>
 
-          <div class="section-title" style="margin-top: 32px;">�🔥 占用排行榜 (Top 20 / 毫秒追踪)</div>
+          <div class="section-title" style="margin-top: 32px;">🔥 冗余及核心资产排行 (TOP 20)</div>
           <div class="layout-grid">
-            <div v-for="file in state.topFiles" :key="file.path" class="large-file-item" @click="LocateFile(file.path)">
-              <div class="file-info">
-                <div class="file-name-text">{{ file.name }}</div>
-                <div class="file-path-text">{{ file.path }}</div>
-                <div class="timestamp" style="margin-top: 4px; opacity: 0.6;">修改时间: {{ file.timeDetail }}</div>
+            <div v-for="file in state.topFiles" :key="file.path" class="large-file-item glass-card" @click="LocateFile(file.path)">
+              <div class="file-info" style="padding: 12px; flex: 1; overflow: hidden;">
+                <div class="file-name-text" style="font-weight: 700; font-size: 14px;">{{ file.name }}</div>
+                <div class="file-path-text" style="margin-top: 4px; opacity: 0.5;">{{ file.path }}</div>
+                <div class="timestamp" style="margin-top: 8px; font-size: 10px; opacity: 0.8;">最后修改: {{ file.timeDetail }}</div>
               </div>
-              <div class="file-size-tag">{{ file.size }}</div>
+              <div class="file-size-tag" style="margin-right: 16px; min-width: 80px; text-align: center;">{{ file.size }}</div>
             </div>
           </div>
         </div>
