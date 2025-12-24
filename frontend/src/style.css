@@ -1,0 +1,47 @@
+:root {
+    --glass-bg: rgba(255, 255, 255, 0.03);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --accent-primary: #0078d4;
+    --accent-hover: #1085da;
+    --text-main: #ffffff;
+    --text-dim: rgba(255, 255, 255, 0.6);
+    --card-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+    background-color: transparent !important;
+    font-family: "Segoe UI Variable Display", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    color: var(--text-main);
+    overflow: hidden;
+    height: 100vh;
+    -webkit-font-smoothing: antialiased;
+}
+
+#app {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    /* 极致通透的背景，依赖 Win11 Mica */
+    background: transparent;
+}
+
+/* 现代化滚动条 */
+::-webkit-scrollbar {
+    width: 4px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
