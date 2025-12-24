@@ -1,11 +1,11 @@
 :root {
-    --glass-bg: rgba(255, 255, 255, 0.03);
-    --glass-border: rgba(255, 255, 255, 0.08);
+    --glass-bg: rgba(0, 0, 0, 0.45);
+    --glass-border: rgba(255, 255, 255, 0.1);
     --accent-primary: #0078d4;
     --accent-hover: #1085da;
     --text-main: #ffffff;
-    --text-dim: rgba(255, 255, 255, 0.6);
-    --card-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+    --text-dim: rgba(255, 255, 255, 0.7);
+    --card-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
 }
 
 html,
@@ -13,7 +13,7 @@ body {
     margin: 0;
     padding: 0;
     background-color: transparent !important;
-    font-family: "Segoe UI Variable Display", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    font-family: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
     color: var(--text-main);
     overflow: hidden;
     height: 100vh;
@@ -24,13 +24,41 @@ body {
     height: 100vh;
     display: flex;
     flex-direction: column;
-    /* 极致通透的背景，依赖 Win11 Mica */
-    background: transparent;
+    /* 动态流光背景层 */
+    background: linear-gradient(-45deg, #0a0a0a, #1a1a2e, #16213e, #0f3460);
+    background-size: 400% 400%;
+    animation: gradientFlow 15s ease infinite;
+    position: relative;
+}
+
+#app::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(circle at 50% 50%, rgba(0, 120, 212, 0.1), transparent 70%);
+    pointer-events: none;
+}
+
+@keyframes gradientFlow {
+    0% {
+        background-position: 0% 50%;
+    }
+
+    50% {
+        background-position: 100% 50%;
+    }
+
+    100% {
+        background-position: 0% 50%;
+    }
 }
 
 /* 现代化滚动条 */
 ::-webkit-scrollbar {
-    width: 4px;
+    width: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -44,4 +72,337 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.2);
+}
+
+/* 磁盘面板设计 */
+.disk-status {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 24px;
+    border: 1px solid var(--glass-border);
+}
+
+.disk-info-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 12px;
+    color: var(--text-dim);
+}
+
+.progress-container {
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+
+.progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #0078d4, #00bcf2);
+    transition: width 0.5s ease;
+}
+
+.disk-detail {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+}
+
+/* 分类洞察条 */
+.insight-bar {
+    display: flex;
+    height: 6px;
+    border-radius: 3px;
+    overflow: hidden;
+    margin: 12px 0;
+    gap: 1px;
+}
+
+.insight-segment {
+    height: 100%;
+    transition: width 0.3s;
+}
+
+.insight-segment.doc {
+    background: #4ade80;
+}
+
+.insight-segment.img {
+    background: #60a5fa;
+}
+
+.insight-segment.vid {
+    background: #f87171;
+}
+
+.insight-segment.code {
+    background: #a855f7;
+}
+
+.insight-segment.office {
+    background: #f97316;
+}
+
+.insight-segment.other {
+    background: #94a3b8;
+}
+
+/* 扫描指示器增强 */
+.scan-indicator {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: rgba(0, 120, 212, 0.1);
+    border: 1px dashed var(--accent-primary);
+    border-radius: 8px;
+    margin-bottom: 20px;
+    animation: borderPulse 2s infinite;
+}
+
+@keyframes borderPulse {
+
+    0%,
+    100% {
+        border-color: rgba(0, 120, 212, 0.3);
+        background: rgba(0, 120, 212, 0.05);
+    }
+
+    50% {
+        border-color: var(--accent-primary);
+        background: rgba(0, 120, 212, 0.15);
+    }
+}
+
+.scanner-icon {
+    animation: rotate 2s linear infinite;
+    color: var(--accent-primary);
+}
+
+@keyframes rotate {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.scan-text {
+    flex: 1;
+    font-size: 13px;
+    overflow: hidden;
+    color: #fff;
+}
+
+.scan-path {
+    font-family: monospace;
+    opacity: 0.7;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+    font-size: 11px;
+    margin-top: 2px;
+}
+
+/* 文本处理优化 */
+.filename {
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    white-space: normal;
+    /* 允许换行 */
+    word-break: break-all;
+    /* 强制长单词换行 */
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    /* 最多显示两行 */
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+.filename:hover {
+    color: var(--accent-hover);
+    text-decoration: underline;
+}
+
+.path-text {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 点击反馈 */
+.glass-card {
+    cursor: pointer;
+}
+
+.glass-card:active {
+    transform: scale(0.98);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+/* 侧边栏导航增强 */
+.nav-item {
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    margin-bottom: 4px;
+    color: var(--text-dim);
+}
+
+.nav-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: #fff;
+}
+
+.nav-item.active {
+    background: rgba(0, 120, 212, 0.15);
+    color: #0078d4;
+    font-weight: 600;
+}
+
+/* 视图网格布局 */
+.layout-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+    padding-bottom: 20px;
+}
+
+.section-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* 大文件列表样式 */
+.large-file-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 10px;
+    border: 1px solid var(--glass-border);
+    margin-bottom: 10px;
+    transition: all 0.2s;
+}
+
+.large-file-item:hover {
+    transform: translateX(4px) scale(1.01);
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.file-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-width: 75%;
+}
+
+.file-name-text {
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.file-path-text {
+    font-size: 10px;
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.file-size-tag {
+    font-size: 11px;
+    background: rgba(0, 120, 212, 0.2);
+    color: #4db3ff;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-family: monospace;
+}
+
+/* 安全审计标签 */
+.security-tag {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    text-transform: uppercase;
+    font-weight: 700;
+}
+
+.security-tag.sensitive {
+    background: rgba(255, 71, 87, 0.2);
+    color: #ff4757;
+    border: 1px solid rgba(255, 71, 87, 0.3);
+}
+
+.security-tag.normal {
+    background: rgba(46, 213, 115, 0.2);
+    color: #2ed573;
+    border: 1px solid rgba(46, 213, 115, 0.3);
+}
+
+/* 清理功能专项 */
+.cleanup-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 8px;
+    margin-bottom: 8px;
+}
+
+/* 按钮组 */
+.button-group {
+    display: flex;
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.ghost-btn {
+    background: transparent;
+    border: 1px solid var(--glass-border);
+    color: #fff;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s;
+}
+
+.ghost-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.ghost-btn.primary {
+    background: var(--accent-primary);
+    border-color: transparent;
+}
+
+.ghost-btn.primary:hover {
+    background: var(--accent-hover);
 }
