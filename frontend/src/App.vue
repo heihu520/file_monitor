@@ -12,8 +12,8 @@ const state = reactive({
   events: [],
   filterQuery: '',
   stats: { total: 0, create: 0, write: 0, remove: 0, rename: 0, folders: 0 },
-  disk: { total: '0 B', free: '0 B', used: '0 B', usage: 0 },
-  insight: { totalSize: '0 B', fileCount: 0, dirCount: 0, categories: {} },
+  disk: { total: '0 B', free: '0 B', Used: '0 B', freeBytes: 0, usage: 0 },
+  insight: { totalSize: '0 B', fileCount: 0, dirCount: 0, categories: {}, extDetails: {} },
   topFiles: [],
   cleanupFiles: [],
   cleanupSelected: new Set(),
@@ -30,13 +30,29 @@ const filteredEvents = computed(() => {
   return state.events.filter(e => e.name.toLowerCase().includes(q) || e.op.toLowerCase().includes(q))
 })
 
+// 20+ 开发语言扩展名列表
+const DEVELOPER_EXTS = {
+  '.go': 'Go', '.py': 'Python', '.js': 'JavaScript', '.ts': 'TypeScript', '.vue': 'Vue',
+  '.java': 'Java', '.cpp': 'C++', '.c': 'C', '.h': 'Header', '.cs': 'C#',
+  '.php': 'PHP', '.sql': 'SQL', '.html': 'HTML', '.css': 'CSS', '.sh': 'Shell',
+  '.json': 'JSON', '.yaml': 'YAML', '.yml': 'YAML', '.rb': 'Ruby', '.rs': 'Rust',
+  '.swift': 'Swift', '.kt': 'Kotlin', '.xml': 'XML', '.md': 'Markdown'
+}
+
+const languageStats = computed(() => {
+  const details = state.insight.extDetails || {}
+  return Object.entries(DEVELOPER_EXTS)
+    .map(([ext, name]) => ({ ext, name, count: details[ext] || 0 }))
+    .filter(item => item.count > 0)
+    .sort((a, b) => b.count - a.count)
+})
+
 const insightSegments = computed(() => {
   if (state.insight.fileCount === 0) return []
   const cats = state.insight.categories; const total = state.insight.fileCount
   const getWeight = (exts) => exts.reduce((acc, e) => acc + (cats[e] || 0), 0)
   
-  // 扩展分类逻辑
-  const codeExts = ['.go', '.py', '.js', '.ts', '.vue', '.java', '.cpp', '.c', '.h', '.cs', '.php', '.sql', '.html', '.css', '.sh', '.json', '.yaml', '.yml']
+  const codeExts = Object.keys(DEVELOPER_EXTS)
   const officeExts = ['.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.pdf', '.txt', '.csv']
   const imgExts = ['.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp', '.bmp', '.ico']
   const vidExts = ['.mp4', '.mkv', '.mov', '.avi', '.mp3', '.wav', '.flac', '.wmv']
@@ -105,7 +121,11 @@ const handleCleanup = async () => {
 
 onMounted(() => {
   EventsOn('file-event', (data) => {
-    const event = { id: Math.random().toString(36).substr(2, 9), time: new Date().toLocaleTimeString(), ...data }
+    // 使用后端推送的高精度 time
+    const event = { 
+      id: Math.random().toString(36).substr(2, 9), 
+      ...data 
+    }
     state.events.unshift(event)
     state.stats.total++
     const op = data.op.toLowerCase()
@@ -116,6 +136,8 @@ onMounted(() => {
     if (data.isSensitive && state.activeModule === 'security') {
       GetSecurityAudit().then(res => state.securityAudit = res)
     }
+    // 实时更新磁盘信息
+    GetDiskInfo(state.monitoredPath).then(d => state.disk = d)
   })
 
   // 监听扫描进度
@@ -143,13 +165,19 @@ const icons = {
       </div>
 
       <div class="disk-status">
-        <div class="disk-info-header"><span>磁盘空间 ({{ state.disk.free }} 可用)</span></div>
+        <div class="disk-info-header"><span>磁盘态势感知</span><span>{{ Math.round(state.disk.usage) || 0 }}%</span></div>
         <div class="progress-container">
           <div class="progress-bar" :style="{ width: state.disk.usage + '%' }"></div>
         </div>
-        <div class="disk-detail">
-          <span>{{ state.disk.used }} / {{ state.disk.total }}</span>
-          <span>{{ Math.round(state.disk.usage) }}%</span>
+        <div class="disk-detail-grid">
+          <div class="detail-item">
+            <span class="detail-label">已使用</span>
+            <span class="detail-value">{{ state.disk.Used || '0 B' }}</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">可用空间</span>
+            <span class="detail-value">{{ state.disk.free || '0 B' }}</span>
+          </div>
         </div>
       </div>
 
@@ -167,7 +195,7 @@ const icons = {
       <div class="sidebar-footer" style="margin-top: auto;">
         <button class="action-btn" @click="handleSelectFolder">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
-          更换监控路径
+          更换分析目标
         </button>
       </div>
     </aside>
@@ -176,7 +204,7 @@ const icons = {
       <header class="top-bar">
         <div class="search-box">
           <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-          <input v-model="state.filterQuery" :placeholder="'搜索'+(state.activeModule==='activity'?'记录':'数据')+'...'" />
+          <input v-model="state.filterQuery" :placeholder="'在'+(state.activeModule==='activity'?'实时记录':'历史数据')+'中检索...'" />
         </div>
         <div v-if="state.monitoredPath" class="path-chip">
           <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path :d="icons.folder"/></svg>
@@ -193,8 +221,8 @@ const icons = {
             </svg>
           </div>
           <div class="scan-text">
-            <strong>正在深度钻取分析...</strong> (已扫描 {{ state.scanProgress.scanned }} 文件)
-            <span class="scan-path">{{ state.scanProgress.current }}</span>
+            <strong>正在执行多维深度扫描...</strong> (已发现 {{ state.scanProgress.scanned || 0 }} 资产项目)
+            <span class="scan-path">{{ state.scanProgress.current || '正在枚举...' }}</span>
           </div>
         </div>
 
@@ -221,9 +249,9 @@ const icons = {
 
         <!-- 模块：空间洞察 -->
         <div v-if="state.activeModule === 'insights'" class="view-module">
-          <div class="section-title">📊 深度分类统计与分布</div>
+          <div class="section-title">📊 多维分类统计分布</div>
           <div class="insight-card disk-status" style="background: rgba(255,255,255,0.01);">
-            <div class="disk-info-header"><span>文件总数: {{ state.insight.fileCount }} | 子目录: {{ state.insight.dirCount }}</span><span>占用: {{ state.insight.totalSize }}</span></div>
+            <div class="disk-info-header"><span>资产总数: {{ state.insight.fileCount }} | 目录深度: {{ state.insight.dirCount }}</span><span>归档总体积: {{ state.insight.totalSize }}</span></div>
             <div class="insight-bar">
               <div v-for="seg in insightSegments" :key="seg.type" class="insight-segment" :class="seg.type" :style="{ width: seg.width }"></div>
             </div>
@@ -234,12 +262,23 @@ const icons = {
             </div>
           </div>
 
-          <div class="section-title" style="margin-top: 32px;">🔥 Top 20 大文件排行</div>
+          <!-- 20+ 开发语言明细 -->
+          <div class="section-title" style="margin-top: 32px;">� 编程语言独立分布 (20+ 识别)</div>
+          <div v-if="languageStats.length === 0" class="welcome-view" style="padding: 20px; font-size: 12px; height: auto;">未检测到主流开发代码资产</div>
+          <div v-else class="extension-grid">
+            <div v-for="item in languageStats" :key="item.ext" class="ext-chip">
+              <span class="ext-name">{{ item.name }}</span>
+              <span class="ext-count">{{ item.count }}</span>
+            </div>
+          </div>
+
+          <div class="section-title" style="margin-top: 32px;">�🔥 占用排行榜 (Top 20 / 毫秒追踪)</div>
           <div class="layout-grid">
             <div v-for="file in state.topFiles" :key="file.path" class="large-file-item" @click="LocateFile(file.path)">
               <div class="file-info">
                 <div class="file-name-text">{{ file.name }}</div>
                 <div class="file-path-text">{{ file.path }}</div>
+                <div class="timestamp" style="margin-top: 4px; opacity: 0.6;">修改时间: {{ file.timeDetail }}</div>
               </div>
               <div class="file-size-tag">{{ file.size }}</div>
             </div>
@@ -281,6 +320,7 @@ const icons = {
                 <div class="card-header">
                   <span class="security-tag" :class="ev.isSensitive?'sensitive':'normal'">{{ ev.isSensitive?'敏感文件改动':'系统变动' }}</span>
                   <span class="op-tag" :class="ev.op.toLowerCase()">{{ ev.op }}</span>
+                  <span class="timestamp">{{ ev.time }}</span>
                 </div>
                 <div class="filename" style="margin-top: 6px;">{{ ev.name }}</div>
               </div>
@@ -291,8 +331,8 @@ const icons = {
         <!-- 空白/加载状态 -->
         <div v-if="!state.monitoredPath" class="welcome-view">
           <div class="hero-icon"><svg viewBox="0 0 24 24" width="80" height="80" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
-          <h2>监控中心就绪</h2>
-          <p>请选择驱动器或目录以激活所有分析模块</p>
+          <h2>分析中心就绪</h2>
+          <p>请选择驱动器或目录以激活全量高精度分析模块</p>
         </div>
       </section>
     </main>

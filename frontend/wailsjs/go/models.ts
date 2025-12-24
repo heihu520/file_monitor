@@ -6,6 +6,7 @@ export namespace main {
 	    fileCount: number;
 	    dirCount: number;
 	    categories: Record<string, number>;
+	    extDetails: Record<string, number>;
 	
 	    static createFrom(source: any = {}) {
 	        return new DirInsight(source);
@@ -18,6 +19,7 @@ export namespace main {
 	        this.fileCount = source["fileCount"];
 	        this.dirCount = source["dirCount"];
 	        this.categories = source["categories"];
+	        this.extDetails = source["extDetails"];
 	    }
 	}
 	export class DiskInfo {
@@ -43,6 +45,7 @@ export namespace main {
 	    path: string;
 	    size: string;
 	    bytes: number;
+	    timeDetail: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new FileStat(source);
@@ -54,6 +57,7 @@ export namespace main {
 	        this.path = source["path"];
 	        this.size = source["size"];
 	        this.bytes = source["bytes"];
+	        this.timeDetail = source["timeDetail"];
 	    }
 	}
 

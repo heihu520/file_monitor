@@ -30,14 +30,16 @@ type DirInsight struct {
 	FileCount  int            `json:"fileCount"`
 	DirCount   int            `json:"dirCount"`
 	Categories map[string]int `json:"categories"`
+	ExtDetails map[string]int `json:"extDetails"` // 新增：扩展名明细统计
 }
 
 // FileStat 用于排序的大文件结构
 type FileStat struct {
-	Name  string `json:"name"`
-	Path  string `json:"path"`
-	Size  string `json:"size"`
-	Bytes int64  `json:"bytes"`
+	Name       string `json:"name"`
+	Path       string `json:"path"`
+	Size       string `json:"size"`
+	Bytes      int64  `json:"bytes"`
+	TimeDetail string `json:"timeDetail"` // 新增：毫秒级时间字符串
 }
 
 // App struct
@@ -68,14 +70,25 @@ func (a *App) startup(ctx context.Context) {
 	go a.listenForEvents()
 }
 
-// addRecursive adds a directory and all its sub-directories to the watcher
+// addRecursive 递归添加目录监听（增强：跳过系统受限目录与无权限目录）
 func (a *App) addRecursive(path string) error {
+	skipDirs := map[string]bool{
+		"System Volume Information": true,
+		"$RECYCLE.BIN":              true,
+		"Recovery":                  true,
+		"Windows":                   true,
+	}
+
 	err := filepath.Walk(path, func(walkPath string, info os.FileInfo, err error) error {
 		if err != nil {
-			return err
+			return nil // 遇到权限错误静默跳过，继续扫描其它
 		}
 		if info.IsDir() {
-			return a.watcher.Add(walkPath)
+			if skipDirs[info.Name()] {
+				return filepath.SkipDir
+			}
+			// 尝试添加监听，忽略单目录失败
+			_ = a.watcher.Add(walkPath)
 		}
 		return nil
 	})
@@ -133,26 +146,25 @@ func (a *App) GetDiskInfo(path string) (*DiskInfo, error) {
 	}, nil
 }
 
-// GetDirectoryInsight 深度扫描目录（增强版：支持进度推送与精细分类）
+// GetDirectoryInsight 深度扫描目录（增强版：支持明细统计与进度推送）
 func (a *App) GetDirectoryInsight(path string) (*DirInsight, error) {
 	insight := &DirInsight{
 		Categories: make(map[string]int),
+		ExtDetails: make(map[string]int),
 	}
 
-	// 排除 Windows 受保护的系统目录
+	// 排除 Windows 受保护及挂载敏感目录
 	skipDirs := map[string]bool{
 		"System Volume Information": true,
 		"$RECYCLE.BIN":              true,
 		"Recovery":                  true,
-		"pagefile.sys":              true,
-		"swapfile.sys":              true,
-		"dumpstack.log.tmp":         true,
+		"Windows":                   true, // 跳过系统目录提速
 	}
 
 	totalScanned := 0
 	err := filepath.Walk(path, func(walkPath string, info os.FileInfo, err error) error {
 		if err != nil {
-			return nil // 忽略无权限或已删除文件
+			return nil
 		}
 
 		if info.IsDir() {
@@ -169,17 +181,16 @@ func (a *App) GetDirectoryInsight(path string) (*DirInsight, error) {
 				ext = "其他"
 			}
 			insight.Categories[ext]++
+			insight.ExtDetails[ext]++ // 明细统计
 		}
 
 		totalScanned++
-		// 每扫描 100 个文件推送一次进度，避免事件过频阻塞
 		if totalScanned%100 == 0 {
 			runtime.EventsEmit(a.ctx, "scan-progress", map[string]interface{}{
 				"scanned": totalScanned,
 				"current": filepath.Base(walkPath),
 			})
 		}
-
 		return nil
 	})
 
@@ -200,15 +211,16 @@ func (a *App) GetTopFiles(path string) ([]FileStat, error) {
 			return nil
 		}
 		files = append(files, FileStat{
-			Name:  info.Name(),
-			Path:  walkPath,
-			Size:  a.formatSize(info.Size()),
-			Bytes: info.Size(),
+			Name:       info.Name(),
+			Path:       walkPath,
+			Size:       a.formatSize(info.Size()),
+			Bytes:      info.Size(),
+			TimeDetail: info.ModTime().Format("15:04:05.000"),
 		})
 		return nil
 	})
 
-	// 按大小降序排序 (简单冒泡实现)
+	// 按大小降序排序
 	for i := 0; i < len(files); i++ {
 		for j := i + 1; j < len(files); j++ {
 			if files[i].Bytes < files[j].Bytes {
@@ -269,9 +281,11 @@ func (a *App) listenForEvents() {
 
 			isDir := false
 			info, err := os.Stat(event.Name)
-			if err == nil && info.IsDir() {
-				isDir = true
-				if event.Op&fsnotify.Create == fsnotify.Create {
+			modTime := ""
+			if err == nil {
+				isDir = info.IsDir()
+				modTime = info.ModTime().Format("15:04:05.000") // 毫秒级时戳
+				if isDir && event.Op&fsnotify.Create == fsnotify.Create {
 					a.addRecursive(event.Name)
 				}
 			}
@@ -288,7 +302,7 @@ func (a *App) listenForEvents() {
 				"op":          event.Op.String(),
 				"isDir":       isDir,
 				"isSensitive": isSensitive,
-				"time":        uint64(os.Getpagesize()), // 仅占位，实际前端会使用 JS 时间
+				"time":        modTime, // 真实毫秒级时间
 			}
 
 			if isSensitive || event.Op&fsnotify.Remove == fsnotify.Remove {

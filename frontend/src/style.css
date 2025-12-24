@@ -2,63 +2,57 @@
     --glass-bg: rgba(0, 0, 0, 0.45);
     --glass-border: rgba(255, 255, 255, 0.1);
     --accent-primary: #0078d4;
-    --accent-hover: #1085da;
+    --accent-hover: #0086f0;
     --text-main: #ffffff;
-    --text-dim: rgba(255, 255, 255, 0.7);
-    --card-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+    --text-dim: rgba(255, 255, 255, 0.6);
+    --card-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
 }
 
-html,
-body {
+* {
+    box-sizing: border-box;
     margin: 0;
     padding: 0;
-    background-color: transparent !important;
-    font-family: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+}
+
+body {
+    margin: 0;
+    font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
     color: var(--text-main);
+    background: transparent;
     overflow: hidden;
-    height: 100vh;
-    -webkit-font-smoothing: antialiased;
 }
 
 #app {
     height: 100vh;
-    display: flex;
-    flex-direction: column;
-    /* 动态流光背景层 */
-    background: linear-gradient(-45deg, #0a0a0a, #1a1a2e, #16213e, #0f3460);
-    background-size: 400% 400%;
-    animation: gradientFlow 15s ease infinite;
+    width: 100vw;
+    background: radial-gradient(circle at top right, rgba(0, 120, 212, 0.15), transparent 40%),
+        radial-gradient(circle at bottom left, rgba(0, 188, 242, 0.1), transparent 40%);
     position: relative;
+    overflow: hidden;
 }
 
 #app::before {
     content: "";
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: radial-gradient(circle at 50% 50%, rgba(0, 120, 212, 0.1), transparent 70%);
-    pointer-events: none;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(15, 15, 15, 0.8), rgba(25, 25, 25, 0.8));
+    z-index: -1;
+    animation: gradientFlow 15s ease infinite alternate;
 }
 
 @keyframes gradientFlow {
     0% {
-        background-position: 0% 50%;
-    }
-
-    50% {
-        background-position: 100% 50%;
+        filter: brightness(1);
     }
 
     100% {
-        background-position: 0% 50%;
+        filter: brightness(1.2) contrast(1.1);
     }
 }
 
-/* 现代化滚动条 */
+/* 滚动条美化 */
 ::-webkit-scrollbar {
-    width: 6px;
+    width: 4px;
 }
 
 ::-webkit-scrollbar-track {
@@ -67,33 +61,74 @@ body {
 
 ::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.1);
-    border-radius: 10px;
+    border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.2);
 }
 
-/* 磁盘面板设计 */
+/* 导航项 */
+.nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+}
+
+.nav-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: #fff;
+}
+
+.nav-item.active {
+    background: rgba(0, 120, 212, 0.15);
+    color: var(--accent-primary);
+    font-weight: 600;
+    border-left: 3px solid var(--accent-primary);
+}
+
+/* 卡片与网格 */
+.layout-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+}
+
+.section-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* 磁盘态势感知 */
 .disk-status {
+    padding: 16px;
     background: rgba(255, 255, 255, 0.03);
     border-radius: 12px;
-    padding: 16px;
-    margin-bottom: 24px;
     border: 1px solid var(--glass-border);
+    margin-bottom: 24px;
 }
 
 .disk-info-header {
     display: flex;
     justify-content: space-between;
-    margin-bottom: 8px;
-    font-size: 12px;
-    color: var(--text-dim);
+    font-size: 13px;
+    margin-bottom: 12px;
+    font-weight: 600;
 }
 
 .progress-container {
     height: 6px;
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
     border-radius: 3px;
     overflow: hidden;
     margin-bottom: 8px;
@@ -105,10 +140,32 @@ body {
     transition: width 0.5s ease;
 }
 
-.disk-detail {
+.disk-detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.detail-item {
     display: flex;
-    justify-content: space-between;
-    font-size: 11px;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.detail-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    opacity: 0.4;
+    letter-spacing: 0.5px;
+}
+
+.detail-value {
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
 }
 
 /* 分类洞察条 */
@@ -148,6 +205,43 @@ body {
 
 .insight-segment.other {
     background: #94a3b8;
+}
+
+/* 语言统计明细网格 */
+.extension-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.ext-chip {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--glass-border);
+    padding: 8px 12px;
+    border-radius: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    transition: transform 0.2s;
+}
+
+.ext-chip:hover {
+    transform: translateY(-2px);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.ext-name {
+    font-weight: 700;
+    color: var(--accent-primary);
+    letter-spacing: 0.5px;
+}
+
+.ext-count {
+    opacity: 0.7;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 500;
 }
 
 /* 扫描指示器增强 */
@@ -216,107 +310,8 @@ body {
     font-weight: 600;
     color: #fff;
     white-space: normal;
-    /* 允许换行 */
     word-break: break-all;
-    /* 强制长单词换行 */
     line-height: 1.4;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    /* 最多显示两行 */
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    cursor: pointer;
-}
-
-.filename:hover {
-    color: var(--accent-hover);
-    text-decoration: underline;
-}
-
-.path-text {
-    font-size: 11px;
-    color: var(--text-dim);
-    margin-top: 4px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-/* 点击反馈 */
-.glass-card {
-    cursor: pointer;
-}
-
-.glass-card:active {
-    transform: scale(0.98);
-    background: rgba(255, 255, 255, 0.08);
-}
-
-/* 侧边栏导航增强 */
-.nav-item {
-    cursor: pointer;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 16px;
-    border-radius: 8px;
-    margin-bottom: 4px;
-    color: var(--text-dim);
-}
-
-.nav-item:hover {
-    background: rgba(255, 255, 255, 0.05);
-    color: #fff;
-}
-
-.nav-item.active {
-    background: rgba(0, 120, 212, 0.15);
-    color: #0078d4;
-    font-weight: 600;
-}
-
-/* 视图网格布局 */
-.layout-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 20px;
-    padding-bottom: 20px;
-}
-
-.section-title {
-    font-size: 18px;
-    font-weight: 600;
-    margin-bottom: 16px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-/* 大文件列表样式 */
-.large-file-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px;
-    background: rgba(255, 255, 255, 0.03);
-    border-radius: 10px;
-    border: 1px solid var(--glass-border);
-    margin-bottom: 10px;
-    transition: all 0.2s;
-}
-
-.large-file-item:hover {
-    transform: translateX(4px) scale(1.01);
-    background: rgba(255, 255, 255, 0.06);
-    border-color: rgba(255, 255, 255, 0.2);
-}
-
-.file-info {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    max-width: 75%;
 }
 
 .file-name-text {
@@ -342,6 +337,13 @@ body {
     padding: 2px 8px;
     border-radius: 4px;
     font-family: monospace;
+}
+
+/* 高精度时间 */
+.timestamp {
+    font-family: 'JetBrains Mono', 'Consolas', monospace;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.5);
 }
 
 /* 安全审计标签 */
@@ -405,4 +407,19 @@ body {
 
 .ghost-btn.primary:hover {
     background: var(--accent-hover);
+}
+
+.welcome-view {
+    text-align: center;
+    margin-top: 15vh;
+    opacity: 0.8;
+}
+
+.welcome-view h2 {
+    margin-bottom: 8px;
+}
+
+.welcome-view p {
+    opacity: 0.5;
+    font-size: 14px;
 }
