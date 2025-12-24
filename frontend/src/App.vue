@@ -208,7 +208,7 @@ const icons = {
         </div>
         <div v-if="state.monitoredPath" class="path-chip">
           <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path :d="icons.folder"/></svg>
-          <span style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ state.monitoredPath }}</span>
+          <span :data-fulltext="state.monitoredPath" style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ state.monitoredPath }}</span>
         </div>
       </header>
 
@@ -222,7 +222,7 @@ const icons = {
           </div>
           <div class="scan-text">
             <strong>正在执行多维深度扫描...</strong> (已发现 {{ state.scanProgress.scanned || 0 }} 资产项目)
-            <span class="scan-path">{{ state.scanProgress.current || '正在枚举...' }}</span>
+            <span class="scan-path" :data-fulltext="state.scanProgress.current">{{ state.scanProgress.current || '正在枚举...' }}</span>
           </div>
         </div>
 
@@ -240,7 +240,7 @@ const icons = {
                 <div class="card-indicator" :class="event.op.toLowerCase()"></div>
                 <div class="card-body">
                   <div class="card-header"><span class="op-tag" :class="event.op.toLowerCase()">{{ event.op }}</span><span class="timestamp">{{ event.time }}</span></div>
-                  <div class="filename">{{ event.name }}</div>
+                  <div class="filename" :data-fulltext="event.name" :data-filename="event.name">{{ event.name }}</div>
                 </div>
               </div>
             </TransitionGroup>
@@ -276,8 +276,8 @@ const icons = {
           <div class="layout-grid">
             <div v-for="file in state.topFiles" :key="file.path" class="large-file-item glass-card" @click="LocateFile(file.path)">
               <div class="file-info" style="padding: 12px; flex: 1; overflow: hidden;">
-                <div class="file-name-text" style="font-weight: 700; font-size: 14px;">{{ file.name }}</div>
-                <div class="file-path-text" style="margin-top: 4px; opacity: 0.5;">{{ file.path }}</div>
+                <div class="file-name-text" :data-fulltext="file.name" style="font-weight: 700; font-size: 14px;">{{ file.name }}</div>
+                <div class="file-path-text" :data-fulltext="file.path" style="margin-top: 4px; opacity: 0.5;">{{ file.path }}</div>
                 <div class="timestamp" style="margin-top: 8px; font-size: 10px; opacity: 0.8;">最后修改: {{ file.timeDetail }}</div>
               </div>
               <div class="file-size-tag" style="margin-right: 16px; min-width: 80px; text-align: center;">{{ file.size }}</div>
@@ -301,8 +301,8 @@ const icons = {
                    @click="state.cleanupSelected.has(file.path)?state.cleanupSelected.delete(file.path):state.cleanupSelected.add(file.path)">
                 <input type="checkbox" class="cleanup-check" :checked="state.cleanupSelected.has(file.path)" />
                 <div class="file-info" style="flex: 1">
-                  <div class="file-name-text">{{ file.name }}</div>
-                  <div class="file-path-text">{{ file.path }}</div>
+                  <div class="file-name-text" :data-fulltext="file.name">{{ file.name }}</div>
+                  <div class="file-path-text" :data-fulltext="file.path">{{ file.path }}</div>
                 </div>
                 <div class="file-size-tag">{{ file.size }}</div>
               </div>

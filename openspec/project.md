@@ -6,10 +6,10 @@
 
 ## 技术栈
 
-- **Language**: Python 3.10+
-- **UI Framework**: PySide6 (Qt for Python)
-- **Win11 Integration**: `dwmapi` (via ctypes), `PyQt-Fluent-Widgets` (optional for aesthetics)
-- **File Monitoring**: `watchdog`
+- **Backend**: Go 1.21+ (Wails v2)
+- **Frontend**: Vue 3 (Vite), Vanilla CSS
+- **Win11 Integration**: Wails builtin (Windows/Mac/Linux support), CSS Backdrop Filter
+- **File Monitoring**: `fsnotify` (Go native)
 
 ## 项目约定
 

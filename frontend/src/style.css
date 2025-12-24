@@ -4,8 +4,10 @@
     --accent-primary: #0078d4;
     --accent-hover: #0086f0;
     --text-main: #ffffff;
-    --text-dim: rgba(255, 255, 255, 0.6);
+    --text-dim: rgba(255, 255, 255, 0.7);
+    /* 提升对比度 */
     --card-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    --blur-radius: 50px;
 }
 
 * {
@@ -18,15 +20,14 @@ body {
     margin: 0;
     font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
     color: var(--text-main);
-    background: transparent;
+    background: #050505;
     overflow: hidden;
 }
 
+/* 多彩粉蓝流动渐变背景 (v8.1 亮度微调) */
 #app {
     height: 100vh;
     width: 100vw;
-    background: radial-gradient(circle at top right, rgba(0, 120, 212, 0.15), transparent 40%),
-        radial-gradient(circle at bottom left, rgba(0, 188, 242, 0.1), transparent 40%);
     position: relative;
     overflow: hidden;
 }
@@ -34,20 +35,125 @@ body {
 #app::before {
     content: "";
     position: absolute;
-    inset: 0;
-    background: linear-gradient(135deg, rgba(15, 15, 15, 0.8), rgba(25, 25, 25, 0.8));
+    inset: -50%;
+    width: 200%;
+    height: 200%;
+    /* 降低渐变亮度，特别是粉色部分，以增强背景与前方文字的对比 */
+    background: radial-gradient(circle at 30% 30%, rgba(255, 126, 179, 0.6) 0%, transparent 40%),
+        radial-gradient(circle at 70% 70%, rgba(122, 252, 255, 0.5) 0%, transparent 40%),
+        radial-gradient(circle at 50% 50%, #1a2a3a 0%, #050505 100%);
     z-index: -1;
-    animation: gradientFlow 15s ease infinite alternate;
+    animation: gradientFlow 25s linear infinite;
+    filter: blur(60px);
 }
 
 @keyframes gradientFlow {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* 全局跑马灯悬浮滚动逻辑 (v8.1) */
+[data-fulltext] {
+    position: relative;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+[data-fulltext]:hover {
+    text-overflow: clip;
+}
+
+/* 通用跑马灯动画实现 */
+.filename:hover::after,
+.file-name-text:hover::after,
+.file-path-text:hover::after,
+.path-chip span:hover::after {
+    content: attr(data-fulltext);
+    position: absolute;
+    left: 0;
+    top: 0;
+    white-space: nowrap;
+    background: inherit;
+    padding-right: 40px;
+    animation: marquee-text 6s linear infinite;
+    z-index: 10;
+    pointer-events: none;
+    -webkit-mask-image: linear-gradient(to right, black 0%, black 85%, transparent 100%);
+}
+
+@keyframes marquee-text {
     0% {
-        filter: brightness(1);
+        transform: translateX(0);
+    }
+
+    15% {
+        transform: translateX(0);
+    }
+
+    85% {
+        transform: translateX(-50%);
     }
 
     100% {
-        filter: brightness(1.2) contrast(1.1);
+        transform: translateX(-50%);
     }
+}
+
+/* 顶栏对比度重构 */
+.top-bar {
+    height: 80px;
+    display: flex;
+    align-items: center;
+    padding: 0 32px;
+    gap: 20px;
+    background: rgba(0, 0, 0, 0.5);
+    /* 显著加深遮罩 */
+    border-bottom: 1px solid var(--glass-border);
+    backdrop-filter: blur(60px) saturate(180%);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    z-index: 100;
+}
+
+.search-box input {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    /* 搜索框深色增强 */
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    padding: 10px 16px 10px 40px;
+    border-radius: 10px;
+    color: white;
+    font-size: 14px;
+    outline: none;
+    transition: all 0.3s;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.search-box input:focus {
+    border-color: var(--accent-primary);
+    background: rgba(0, 0, 0, 0.8);
+}
+
+.top-bar svg,
+.top-bar span {
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6));
+    /* 为图标和文本添加投影 */
+}
+
+/* 侧边栏对齐 v8.1 */
+.sidebar {
+    width: 260px;
+    background: rgba(0, 0, 0, 0.4);
+    border-right: 1px solid var(--glass-border);
+    display: flex;
+    flex-direction: column;
+    padding: 32px 20px;
+    backdrop-filter: blur(40px);
 }
 
 /* 滚动条美化 */
@@ -93,25 +199,6 @@ body {
     border-left: 3px solid var(--accent-primary);
 }
 
-/* 卡片与网格 */
-.layout-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 16px;
-}
-
-.section-title {
-    font-size: 16px;
-    font-weight: 700;
-    margin-bottom: 16px;
-    color: var(--text-dim);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
 /* 磁盘态势感知 */
 .disk-status {
     padding: 16px;
@@ -119,6 +206,7 @@ body {
     border-radius: 12px;
     border: 1px solid var(--glass-border);
     margin-bottom: 24px;
+    backdrop-filter: blur(var(--blur-radius));
 }
 
 .disk-info-header {
@@ -161,7 +249,7 @@ body {
 .detail-label {
     font-size: 10px;
     text-transform: uppercase;
-    opacity: 0.4;
+    opacity: 0.5;
     letter-spacing: 0.5px;
 }
 
@@ -172,16 +260,107 @@ body {
     font-family: 'JetBrains Mono', monospace;
 }
 
-/* 分类洞察条 */
-.insight-bar {
+/* 扫描指示器 */
+.scan-indicator {
     display: flex;
-    height: 6px;
-    border-radius: 3px;
-    overflow: hidden;
-    margin: 12px 0;
-    gap: 1px;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: rgba(0, 120, 212, 0.15);
+    border: 1px solid var(--accent-primary);
+    border-radius: 10px;
+    margin-bottom: 20px;
+    backdrop-filter: blur(20px);
 }
 
+.scanner-icon {
+    animation: rotate 2s linear infinite;
+    color: var(--accent-primary);
+}
+
+@keyframes rotate {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.scan-text {
+    flex: 1;
+    font-size: 13px;
+    overflow: hidden;
+    color: #fff;
+    white-space: nowrap;
+}
+
+.scan-path {
+    font-family: monospace;
+    opacity: 0.8;
+    display: inline-block;
+    font-size: 11px;
+    margin-top: 2px;
+    min-width: 100%;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* 下方卡片视觉统合 */
+.glass-card {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    box-shadow: var(--card-shadow);
+    transition: all 0.2s;
+    backdrop-filter: blur(20px);
+}
+
+.large-file-item {
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.02);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    border-radius: 12px;
+}
+
+.large-file-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: var(--accent-primary);
+    transform: translateX(4px);
+    box-shadow: 4px 12px 24px rgba(0, 0, 0, 0.3);
+}
+
+.file-name-text {
+    font-size: 13px;
+    font-weight: 700;
+    height: 18px;
+    line-height: 18px;
+}
+
+.file-path-text {
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-top: 2px;
+}
+
+.file-size-tag {
+    font-size: 11px;
+    background: rgba(0, 120, 212, 0.3);
+    color: #fff;
+    padding: 2px 10px;
+    border-radius: 6px;
+    font-weight: 700;
+    font-family: 'JetBrains Mono';
+}
+
+/* 分类洞察 */
 .insight-segment {
     height: 100%;
     transition: width 0.3s;
@@ -211,7 +390,6 @@ body {
     background: #94a3b8;
 }
 
-/* 语言统计明细网格 */
 .extension-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
@@ -228,221 +406,37 @@ body {
     justify-content: space-between;
     align-items: center;
     font-size: 11px;
-    transition: transform 0.2s;
 }
 
-.ext-chip:hover {
-    transform: translateY(-2px);
-    background: rgba(255, 255, 255, 0.06);
-}
-
-.ext-name {
-    font-weight: 700;
-    color: var(--accent-primary);
-    letter-spacing: 0.5px;
-}
-
-.ext-count {
-    opacity: 0.7;
-    font-family: 'JetBrains Mono', monospace;
-    font-weight: 500;
-}
-
-/* 扫描指示器增强 */
-.scan-indicator {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 16px;
-    background: rgba(0, 120, 212, 0.1);
-    border: 1px dashed var(--accent-primary);
-    border-radius: 8px;
-    margin-bottom: 20px;
-    animation: borderPulse 2s infinite;
-}
-
-@keyframes borderPulse {
-
-    0%,
-    100% {
-        border-color: rgba(0, 120, 212, 0.3);
-        background: rgba(0, 120, 212, 0.05);
-    }
-
-    50% {
-        border-color: var(--accent-primary);
-        background: rgba(0, 120, 212, 0.15);
-    }
-}
-
-.scanner-icon {
-    animation: rotate 2s linear infinite;
-    color: var(--accent-primary);
-}
-
-@keyframes rotate {
-    from {
-        transform: rotate(0deg);
-    }
-
-    to {
-        transform: rotate(360deg);
-    }
-}
-
-.scan-text {
-    flex: 1;
-    font-size: 13px;
-    overflow: hidden;
-    color: #fff;
-}
-
-.scan-path {
-    font-family: monospace;
-    opacity: 0.7;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    display: block;
-    font-size: 11px;
-    margin-top: 2px;
-}
-
-/* 文本处理优化 */
-.filename {
-    font-size: 14px;
-    font-weight: 600;
-    color: #fff;
-    white-space: normal;
-    word-break: break-all;
-    line-height: 1.4;
-}
-
-.file-name-text {
-    font-size: 13px;
-    font-weight: 700;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.file-path-text {
-    font-size: 10px;
-    color: var(--text-dim);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.file-size-tag {
-    font-size: 11px;
-    background: rgba(0, 120, 212, 0.2);
-    color: #4db3ff;
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-family: 'JetBrains Mono', monospace;
-}
-
-/* 增强型排行榜项 */
-.large-file-item {
-    cursor: pointer;
-    transition: all 0.2s ease;
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    background: rgba(255, 255, 255, 0.02);
-    margin-bottom: 4px;
-    display: flex;
-    align-items: center;
-    border-radius: 12px;
-}
-
-.large-file-item:hover {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: var(--accent-primary);
-    transform: translateX(4px);
-    box-shadow: 4px 4px 15px rgba(0, 0, 0, 0.2);
-}
-
-/* 高精度时间 */
 .timestamp {
-    font-family: 'JetBrains Mono', 'Consolas', monospace;
+    font-family: 'JetBrains Mono';
     font-size: 11px;
-    color: rgba(255, 255, 255, 0.5);
-}
-
-/* 安全审计标签 */
-.security-tag {
-    font-size: 10px;
-    padding: 2px 8px;
-    border-radius: 6px;
-    text-transform: uppercase;
-    font-weight: 700;
-}
-
-.security-tag.sensitive {
-    background: rgba(255, 71, 87, 0.2);
-    color: #ff4757;
-    border: 1px solid rgba(255, 71, 87, 0.3);
-}
-
-.security-tag.normal {
-    background: rgba(46, 213, 115, 0.2);
-    color: #2ed573;
-    border: 1px solid rgba(46, 213, 115, 0.3);
-}
-
-/* 清理功能专项 */
-.cleanup-card {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px;
-    background: rgba(255, 255, 255, 0.02);
-    border-radius: 8px;
-    margin-bottom: 8px;
-}
-
-/* 按钮组 */
-.button-group {
-    display: flex;
-    gap: 12px;
-    margin-top: 16px;
-}
-
-.ghost-btn {
-    background: transparent;
-    border: 1px solid var(--glass-border);
-    color: #fff;
-    padding: 8px 16px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 13px;
-    transition: all 0.2s;
-}
-
-.ghost-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
-}
-
-.ghost-btn.primary {
-    background: var(--accent-primary);
-    border-color: transparent;
-}
-
-.ghost-btn.primary:hover {
-    background: var(--accent-hover);
+    opacity: 0.6;
 }
 
 .welcome-view {
     text-align: center;
-    margin-top: 15vh;
-    opacity: 0.8;
+    margin-top: 10vh;
+    opacity: 0.9;
 }
 
-.welcome-view h2 {
-    margin-bottom: 8px;
+.action-btn {
+    background: var(--accent-primary);
+    border: none;
+    color: white;
+    padding: 12px;
+    border-radius: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition: all 0.3s;
 }
 
-.welcome-view p {
-    opacity: 0.5;
-    font-size: 14px;
+.action-btn:hover {
+    background: var(--accent-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0, 120, 212, 0.4);
 }
