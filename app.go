@@ -258,26 +258,32 @@ func (a *App) ScanCleanup(path string) ([]FileStat, error) {
 	return redundant, err
 }
 
-// GetFilesByExt 获取指定目录下所有匹配扩展名的文件列表
-func (a *App) GetFilesByExt(path string, ext string) ([]FileStat, error) {
+// GetFilesByExts 获取匹配任一扩展名的文件列表 (v9.2)
+func (a *App) GetFilesByExts(path string, exts []string) ([]FileStat, error) {
 	files := make([]FileStat, 0)
-	targetExt := strings.ToLower(ext)
+	targets := make(map[string]bool)
+	hasOther := false
+	for _, e := range exts {
+		if e == "其他" {
+			hasOther = true
+		} else {
+			targets[strings.ToLower(e)] = true
+		}
+	}
 
 	err := filepath.Walk(path, func(walkPath string, info os.FileInfo, err error) error {
-		if err != nil {
+		if err != nil || info.IsDir() {
 			return nil
 		}
-		if !info.IsDir() {
-			fExt := strings.ToLower(filepath.Ext(walkPath))
-			if fExt == targetExt || (targetExt == "其他" && fExt == "") {
-				files = append(files, FileStat{
-					Name:       info.Name(),
-					Path:       walkPath,
-					Size:       a.formatSize(info.Size()),
-					Bytes:      info.Size(),
-					TimeDetail: info.ModTime().Format("15:04:05.000"),
-				})
-			}
+		fExt := strings.ToLower(filepath.Ext(walkPath))
+		if targets[fExt] || (hasOther && fExt == "") {
+			files = append(files, FileStat{
+				Name:       info.Name(),
+				Path:       walkPath,
+				Size:       a.formatSize(info.Size()),
+				Bytes:      info.Size(),
+				TimeDetail: info.ModTime().Format("15:04:05.000"),
+			})
 		}
 		return nil
 	})
@@ -290,8 +296,12 @@ func (a *App) GetFilesByExt(path string, ext string) ([]FileStat, error) {
 			}
 		}
 	}
-
 	return files, err
+}
+
+// GetFilesByExt 获取指定目录下所有匹配扩展名的文件列表
+func (a *App) GetFilesByExt(path string, ext string) ([]FileStat, error) {
+	return a.GetFilesByExts(path, []string{ext})
 }
 
 // ExecuteCleanup 执行物理删除

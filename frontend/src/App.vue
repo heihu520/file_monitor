@@ -56,20 +56,34 @@ const insightSegments = computed(() => {
   const codeExts = Object.keys(DEVELOPER_EXTS)
   const officeExts = ['.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.pdf', '.txt', '.csv']
   const imgExts = ['.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp', '.bmp', '.ico']
-  const vidExts = ['.mp4', '.mkv', '.mov', '.avi', '.mp3', '.wav', '.flac', '.wmv']
-  
+  const vidExts = ['.mp4', '.mkv', '.mov', '.avi', '.wmv']
+  const zipExts = ['.zip', '.rar', '.7z', '.tar', '.gz', '.bz2']
+  const audioExts = ['.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a']
+  const exeExts = ['.exe', '.msi', '.bat', '.sh', '.cmd', '.py', '.js']
+  const dbExts = ['.sqlite', '.db', '.sql', '.json', '.xml', '.yaml']
+  const tmpExts = ['.tmp', '.log', '.bak', '.old', '.swp', '.dmp']
+
   const code = getWeight(codeExts)
   const office = getWeight(officeExts)
   const imgs = getWeight(imgExts)
   const vids = getWeight(vidExts)
-  const other = total - code - office - imgs - vids
+  const zips = getWeight(zipExts)
+  const audio = getWeight(audioExts)
+  const exes = getWeight(exeExts)
+  const dbs = getWeight(dbExts)
+  const tmps = getWeight(tmpExts)
+  const other = total - code - office - imgs - vids - zips - audio - exes - dbs - tmps
 
   return [
-    { type: 'code', label: '代码', color: '#a855f7', icon: 'M16 18l6-6-6-6M8 6l-6 6 6 6', width: (code / total * 100) + '%' },
-    { type: 'office', label: '办公', color: '#f97316', icon: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z', width: (office / total * 100) + '%' },
-    { type: 'img', label: '图片', color: '#60a5fa', icon: 'M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z', width: (imgs / total * 100) + '%' },
-    { type: 'vid', label: '媒体', color: '#f87171', icon: 'M23 7l-7 5 7 5V7zM1 5h11v14H1z', width: (vidExts / total * 100) + '%' },
-    { type: 'other', label: '其他', color: '#94a3b8', icon: 'M12 2v20M2 12h20', width: (other / total * 100) + '%' }
+    { type: 'code', label: '核心代码', val: code, exts: codeExts, color: '#a855f7', icon: 'M16 18l6-6-6-6M8 6l-6 6 6 6', width: (code / total * 100) + '%' },
+    { type: 'office', label: '办公文档', val: office, exts: officeExts, color: '#f97316', icon: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z', width: (office / total * 100) + '%' },
+    { type: 'img', label: '设计图形', val: imgs, exts: imgExts, color: '#60a5fa', icon: 'M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z', width: (imgs / total * 100) + '%' },
+    { type: 'vid', label: '视频资产', val: vids, exts: vidExts, color: '#f87171', icon: 'M21 15V9a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2z', width: (vids / total * 100) + '%' },
+    { type: 'zip', label: '压缩归档', val: zips, exts: zipExts, color: '#fbbf24', icon: 'M21 10h-6V4l-4 4 4 4V8h4v2h-4v2h4v2h-4v2h4v2h-4v2h4v2h-4v2z', width: (zips / total * 100) + '%' },
+    { type: 'db', label: '数据结构', val: dbs, exts: dbExts, color: '#2dd4bf', icon: 'M4 6c0 1.66 3.58 3 8 3s8-1.34 8-3-3.58-3-8-3-8 1.34-8 3M4 10c0 1.66 3.58 3 8 3s8-1.34 8-3M4 14c0 1.66 3.58 3 8 3s8-1.34 8-3', width: (dbs / total * 100) + '%' },
+    { type: 'exe', label: '执行脚本', val: exes, exts: exeExts, color: '#ef4444', icon: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z', width: (exes / total * 100) + '%' },
+    { type: 'audio', label: '音频素材', val: audio, exts: audioExts, color: '#34d399', icon: 'M9 18V5l12-2v13', width: (audio / total * 100) + '%' },
+    { type: 'tmp', label: '系统冗余', val: tmps, exts: tmpExts, color: '#94a3b8', icon: 'M19 6L5 20M5 6l14 14', width: (tmps / total * 100) + '%' }
   ].filter(s => parseFloat(s.width) > 0)
 })
 
@@ -160,15 +174,19 @@ onMounted(() => {
   })
 })
 
-// 分类钻取逻辑 (v8.4)
+// 增强型钻取逻辑 (v9.2) - 支持多扩展名批量扫描
 const handleDrilldown = async (item) => {
   state.isScanning = true
   try {
-    const files = await GetFilesByExt(state.monitoredPath, item.ext)
+    // 根据 item 是否包含 exts 数组选择接口
+    const files = item.exts 
+      ? await GetFilesByExts(state.monitoredPath, item.exts)
+      : await GetFilesByExt(state.monitoredPath, item.ext)
+      
     state.drilldown = {
       active: true,
-      ext: item.ext,
-      name: item.name,
+      ext: item.ext || (item.exts ? item.exts[0] : ''),
+      name: item.label || item.name,
       files: files
     }
   } finally {
@@ -193,10 +211,10 @@ const icons = {
 <template>
   <div class="window-content">
     <aside class="sidebar">
-      <div class="brand">
+      <div class="brand" style="margin-bottom: 24px;">
         <!-- v8.5 炫酷 SVG Logo -->
-        <div class="logo-stack">
-          <svg viewBox="0 0 100 100" width="48" height="48" class="main-logo">
+        <div class="logo-stack" style="width: 54px; height: 54px;">
+          <svg viewBox="0 0 100 100" width="42" height="42" class="main-logo">
             <defs>
               <linearGradient id="logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
                 <stop offset="0%" style="stop-color:#0078d4;stop-opacity:1" />
@@ -222,13 +240,13 @@ const icons = {
         <div class="progress-container">
           <div class="progress-bar" :style="{ width: state.disk.usage + '%' }"></div>
         </div>
-        <div class="disk-detail-grid" style="margin-top: 24px; display: flex; flex-direction: column; gap: 12px;">
+        <div class="disk-detail-grid" style="margin-top: 24px; display: flex; flex-direction: column; gap: 14px;">
           <div class="detail-item" style="display: flex; justify-content: space-between; align-items: center;">
-            <span class="detail-label" style="font-size: 11px; opacity: 0.6;">已使用空间</span>
+            <span class="detail-label" style="font-size: 11px; font-weight: 800; color: var(--neon-green); opacity: 0.9;">已使用空间</span>
             <span class="detail-value used-val" style="font-size: 15px; font-weight: 800; color: var(--neon-green);">{{ state.disk.used || '0 B' }}</span>
           </div>
           <div class="detail-item" style="display: flex; justify-content: space-between; align-items: center;">
-            <span class="detail-label" style="font-size: 11px; opacity: 0.6;">可用剩余</span>
+            <span class="detail-label" style="font-size: 11px; font-weight: 800; color: #3b82f6; opacity: 0.9;">可用剩余</span>
             <span class="detail-value free-val" style="font-size: 15px; font-weight: 800; color: #3b82f6;">{{ state.disk.free || '0 B' }}</span>
           </div>
         </div>
@@ -328,11 +346,16 @@ const icons = {
             <div class="insight-bar" style="margin-top: 10px;">
               <div v-for="seg in insightSegments" :key="seg.type" class="insight-segment" :class="seg.type" :style="{ width: seg.width }"></div>
             </div>
-            <div class="disk-detail" style="font-size: 11px; flex-wrap: wrap; gap: 16px; margin-top: 20px;">
-              <span v-for="seg in insightSegments" :key="seg.type" :style="{ color: seg.color, display: 'flex', alignItems: 'center', gap: '6px' }">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path :d="seg.icon"/></svg>
-                <span style="font-weight: 600;">{{ seg.label }}</span>
-              </span>
+            <div class="legend-grid">
+              <div v-for="seg in insightSegments" :key="seg.type" class="legend-module" @click="handleDrilldown(seg)">
+                <div class="leg-icon-box" :style="{ color: seg.color }">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path :d="seg.icon"/></svg>
+                </div>
+                <div class="leg-content">
+                  <div class="leg-label">{{ seg.label }}</div>
+                  <div class="leg-val" :style="{ color: seg.color }">{{ seg.val }}</div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -412,20 +435,29 @@ const icons = {
           </div>
         </div>
 
-        <!-- 钻取详情试图 (v8.4) -->
-        <div v-if="state.drilldown.active" class="drilldown-view">
+        <!-- 钻取详情试图 (v9.3 对标版) -->
+        <div v-if="state.drilldown.active" class="drilldown-view" style="margin-top: 10px;">
           <div class="section-title">
-            <button class="back-btn" @click="closeDrilldown">← 返回指标面板</button>
-            <span>分类详情: {{ state.drilldown.name }} ({{ state.drilldown.ext }})</span>
+            <button class="back-btn" @click="closeDrilldown">← 返回概览</button>
+            <span>分类检索: {{ state.drilldown.name }}</span>
           </div>
-          <div class="ranking-list" style="margin-top: 20px;">
-            <div v-for="file in state.drilldown.files" :key="file.path" class="large-file-item glass-card" @click="LocateFile(file.path)">
-              <div class="file-info" style="padding: 12px; flex: 1; overflow: hidden;">
-                <div class="file-name-text" :data-fulltext="file.name" style="font-weight: 700; font-size: 14px;">{{ file.name }}</div>
-                <div class="file-path-text" :data-fulltext="file.path" style="margin-top: 4px; opacity: 0.5;">{{ file.path }}</div>
-                <div class="timestamp" style="margin-top: 8px; font-size: 10px; opacity: 0.8;">最后修改: {{ file.timeDetail }}</div>
+          
+          <div class="ranking-list" style="margin-top: 24px;">
+            <div v-for="file in state.drilldown.files" :key="file.path" 
+                 class="glass-card" 
+                 style="padding: 16px 20px; cursor: pointer;"
+                 @click="LocateFile(file.path)">
+              <div class="card-indicator" style="background: var(--neon-green)"></div>
+              <div class="card-body" style="padding: 12px 16px; overflow: hidden;">
+                <div class="card-header">
+                  <span class="op-tag" style="color: var(--neon-green)">FILE ASSET</span>
+                  <span class="timestamp">最后修改: {{ file.timeDetail }}</span>
+                </div>
+                <!-- 跑马灯 3.1 强化层 -->
+                <div class="file-name-text" :data-fulltext="file.name" style="font-weight: 800; font-size: 14px; margin-top: 4px;">{{ file.name }}</div>
+                <div class="file-path-text" :data-fulltext="file.path" style="font-size: 10px; opacity: 0.4; margin-top: 2px;">{{ file.path }}</div>
               </div>
-              <div class="file-size-tag" style="margin-right: 16px; min-width: 80px; text-align: center;">{{ file.size }}</div>
+              <div class="file-size-tag" style="margin-right: 16px; min-width: 90px; text-align: center;">{{ file.size }}</div>
             </div>
           </div>
         </div>
@@ -468,7 +500,7 @@ const icons = {
 .search-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-dim); }
 .search-box input { width: 100%; background: rgba(0, 0, 0, 0.2); border: 1px solid var(--glass-border); padding: 10px 16px 10px 40px; border-radius: 10px; color: white; font-size: 14px; outline: none; }
 .path-chip { background: rgba(255, 255, 255, 0.05); padding: 6px 14px; border-radius: 20px; font-size: 12px; color: var(--text-dim); display: flex; align-items: center; gap: 8px; }
-.viewport { flex: 1; padding: 24px 32px; overflow-y: auto; overflow-x: hidden; }
+.viewport { flex: 1; overflow-y: auto; }
 .view-module { animation: fadeIn 0.4s ease-out; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 .event-scroll { display: flex; flex-direction: column; gap: 10px; }

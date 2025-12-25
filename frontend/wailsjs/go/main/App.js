@@ -18,6 +18,10 @@ export function GetFilesByExt(arg1, arg2) {
   return window['go']['main']['App']['GetFilesByExt'](arg1, arg2);
 }
 
+export function GetFilesByExts(arg1, arg2) {
+  return window['go']['main']['App']['GetFilesByExts'](arg1, arg2);
+}
+
 export function GetSecurityAudit() {
   return window['go']['main']['App']['GetSecurityAudit']();
 }
