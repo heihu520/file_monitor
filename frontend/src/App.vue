@@ -2,7 +2,8 @@
 import { reactive, onMounted, ref, computed, watch } from 'vue'
 import { 
   SelectFolder, GetDiskInfo, GetDirectoryInsight, LocateFile,
-  GetTopFiles, ScanCleanup, ExecuteCleanup, GetSecurityAudit, GetFilesByExt 
+  GetTopFiles, ScanCleanup, ExecuteCleanup, GetSecurityAudit, GetFilesByExt,
+  GetFilesByExts, SearchFiles, GetLastPath, StartAutoMonitor
 } from '../wailsjs/go/main/App'
 import { EventsOn } from '../wailsjs/runtime/runtime'
 
@@ -21,8 +22,57 @@ const state = reactive({
   isScanning: false,
   isCleaning: false,
   scanProgress: { scanned: 0, current: '' },
-  drilldown: { active: false, ext: '', name: '', files: [] } // 新增钻取状态
+  drilldown: { active: false, ext: '', name: '', files: [], sortBy: 'size', sortOrder: 'desc' }, // 分类排序 (v10.1)
+  search: { active: false, query: '', results: [], sortBy: 'size', sortOrder: 'desc' }, // 默认降序 (v10.0)
+  restored: false
 })
+
+const searchStats = computed(() => {
+  if (!state.search.results.length) return { files: 0, dirs: 0 }
+  const dirs = new Set(state.search.results.map(f => {
+    const parts = f.path.split(/[\\/]/)
+    parts.pop()
+    return parts.join('/')
+  }))
+  return {
+    files: state.search.results.length,
+    dirs: dirs.size
+  }
+})
+
+const sortedSearchResults = computed(() => {
+  const results = [...state.search.results]
+  const order = state.search.sortOrder === 'desc' ? -1 : 1
+  
+  return results.sort((a, b) => {
+    if (state.search.sortBy === 'size') {
+      return (a.bytes - b.bytes) * order
+    } else if (state.search.sortBy === 'time') {
+      return (a.timestamp - b.timestamp) * order
+    } else if (state.search.sortBy === 'name') {
+      return a.name.localeCompare(b.name) * order
+    }
+    return 0
+  })
+})
+
+const sortedDrilldownFiles = computed(() => {
+  const results = [...state.drilldown.files]
+  const order = state.drilldown.sortOrder === 'desc' ? -1 : 1
+  
+  return results.sort((a, b) => {
+    if (state.drilldown.sortBy === 'size') {
+      return (a.bytes - b.bytes) * order
+    } else if (state.drilldown.sortBy === 'time') {
+      return (a.timestamp - b.timestamp) * order
+    } else if (state.drilldown.sortBy === 'name') {
+      return a.name.localeCompare(b.name) * order
+    }
+    return 0
+  })
+})
+
+const viewportRef = ref(null)
 
 // 计算属性
 const filteredEvents = computed(() => {
@@ -147,7 +197,17 @@ const handleCleanup = async () => {
   fetchModuleData()
 }
 
-onMounted(() => {
+onMounted(async () => {
+  // 恢复上次路径 (v9.6)
+  const lastPath = await GetLastPath()
+  if (lastPath) {
+    state.monitoredPath = lastPath
+    await StartAutoMonitor(lastPath)
+    state.restored = true
+    setTimeout(() => state.restored = false, 3000)
+    fetchModuleData()
+  }
+
   EventsOn('file-event', (data) => {
     // 使用后端推送的高精度 time
     const event = { 
@@ -174,6 +234,24 @@ onMounted(() => {
   })
 })
 
+const toggleSort = (key, mode = 'search') => {
+  if (mode === 'search') {
+    if (state.search.sortBy === key) {
+      state.search.sortOrder = state.search.sortOrder === 'desc' ? 'asc' : 'desc'
+    } else {
+      state.search.sortBy = key
+      state.search.sortOrder = 'desc'
+    }
+  } else {
+    if (state.drilldown.sortBy === key) {
+      state.drilldown.sortOrder = state.drilldown.sortOrder === 'desc' ? 'asc' : 'desc'
+    } else {
+      state.drilldown.sortBy = key
+      state.drilldown.sortOrder = 'desc'
+    }
+  }
+}
+
 // 增强型钻取逻辑 (v9.2) - 支持多扩展名批量扫描
 const handleDrilldown = async (item) => {
   state.isScanning = true
@@ -194,8 +272,46 @@ const handleDrilldown = async (item) => {
   }
 }
 
+// 全局递归检索逻辑 (v9.5)
+const handleGlobalSearch = async () => {
+  if (!state.filterQuery) {
+    state.search.active = false
+    return
+  }
+  state.isScanning = true
+  try {
+    const results = await SearchFiles(state.monitoredPath, state.filterQuery)
+    state.search = {
+      active: true,
+      query: state.filterQuery,
+      results: results
+    }
+    // 强制关闭其它视图，确保结果显示
+    state.drilldown.active = false
+  } finally {
+    state.isScanning = false
+  }
+}
+
+const closeSearch = () => {
+  state.search.active = false
+  state.filterQuery = ''
+}
+
 const closeDrilldown = () => {
   state.drilldown.active = false
+}
+
+const scrollToTop = () => {
+  if (viewportRef.value) {
+    viewportRef.value.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+}
+
+const scrollToBottom = () => {
+  if (viewportRef.value) {
+    viewportRef.value.scrollTo({ top: viewportRef.value.scrollHeight, behavior: 'smooth' })
+  }
 }
 
 const icons = {
@@ -231,9 +347,9 @@ const icons = {
 
       <div class="disk-status neon-border">
         <div class="disk-info-header">
-          <div class="disk-title-group">
-            <div class="radar-icon"></div>
-            <span>磁盘态势感知</span>
+          <div class="disk-title-group" style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;">
+            <div class="radar-icon" style="flex-shrink: 0;"></div>
+            <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px;">磁盘态势感知</span>
           </div>
           <span style="color: var(--neon-green)">{{ Math.round(state.disk.usage) || 0 }}%</span>
         </div>
@@ -241,13 +357,13 @@ const icons = {
           <div class="progress-bar" :style="{ width: state.disk.usage + '%' }"></div>
         </div>
         <div class="disk-detail-grid" style="margin-top: 24px; display: flex; flex-direction: column; gap: 14px;">
-          <div class="detail-item" style="display: flex; justify-content: space-between; align-items: center;">
-            <span class="detail-label" style="font-size: 11px; font-weight: 800; color: var(--neon-green); opacity: 0.9;">已使用空间</span>
-            <span class="detail-value used-val" style="font-size: 15px; font-weight: 800; color: var(--neon-green);">{{ state.disk.used || '0 B' }}</span>
+          <div class="detail-item" style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+            <span class="detail-label" style="font-size: 11px; font-weight: 800; color: var(--neon-green); opacity: 0.9; white-space: nowrap;">已使用空间</span>
+            <span class="detail-value used-val" style="font-size: 15px; font-weight: 800; color: var(--neon-green); white-space: nowrap;">{{ state.disk.used || '0 B' }}</span>
           </div>
-          <div class="detail-item" style="display: flex; justify-content: space-between; align-items: center;">
-            <span class="detail-label" style="font-size: 11px; font-weight: 800; color: #3b82f6; opacity: 0.9;">可用剩余</span>
-            <span class="detail-value free-val" style="font-size: 15px; font-weight: 800; color: #3b82f6;">{{ state.disk.free || '0 B' }}</span>
+          <div class="detail-item" style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+            <span class="detail-label" style="font-size: 11px; font-weight: 800; color: #3b82f6; opacity: 0.9; white-space: nowrap;">可用剩余</span>
+            <span class="detail-value free-val" style="font-size: 15px; font-weight: 800; color: #3b82f6; white-space: nowrap;">{{ state.disk.free || '0 B' }}</span>
           </div>
         </div>
       </div>
@@ -272,18 +388,23 @@ const icons = {
     </aside>
 
     <main class="main-stage">
-      <header class="top-bar">
+      <header class="top-bar" @dblclick="scrollToTop">
         <div class="search-box">
           <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-          <input v-model="state.filterQuery" :placeholder="'在'+(state.activeModule==='activity'?'实时记录':'历史数据')+'中检索...'" />
+          <input v-model="state.filterQuery" 
+                 :placeholder="state.search.active ? '搜索中...' : '输入关键词，回车全局搜索资产...'" 
+                 @keyup.enter="handleGlobalSearch" />
         </div>
-        <div v-if="state.monitoredPath" class="path-chip">
+        <div v-if="state.monitoredPath" class="path-chip" :class="{ restored: state.restored }">
           <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path :d="icons.folder"/></svg>
           <span :data-fulltext="state.monitoredPath" style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ state.monitoredPath }}</span>
+          <span v-if="state.restored" style="font-size: 10px; color: var(--neon-green); margin-left: 8px;">(已自动恢复)</span>
         </div>
       </header>
 
-      <section class="viewport">
+      <section class="viewport" ref="viewportRef">
+        <!-- 底部快速置底感应器 -->
+        <div class="bottom-navigator" @dblclick="scrollToBottom"></div>
         <!-- 实时扫描指示器 -->
         <div v-if="state.isScanning" class="scan-indicator">
           <div class="scanner-icon">
@@ -298,7 +419,7 @@ const icons = {
         </div>
 
         <!-- 模块：实时活动 -->
-        <div v-if="state.activeModule === 'activity' && !state.drilldown.active" class="view-module">
+        <div v-if="state.activeModule === 'activity' && !state.drilldown.active && !state.search.active" class="view-module">
           <!-- 实时监控呼吸指示器 (v8.3) -->
           <div class="monitoring-status">
             <div class="pulse-dot"></div>
@@ -306,11 +427,52 @@ const icons = {
             <span class="status-text">实时防御保护中</span>
           </div>
 
-          <div class="stats-panel" style="display: flex; gap: 20px; padding: 12px; margin-bottom: 20px;">
-            <div class="mini-stat"><span class="dot create"></span><span>新建: {{ state.stats.create }}</span></div>
-            <div class="mini-stat"><span class="dot write"></span><span>修改: {{ state.stats.write }}</span></div>
-            <div class="mini-stat"><span class="dot remove"></span><span>删除: {{ state.stats.remove }}</span></div>
-            <div class="mini-stat"><span class="dot folder"></span><span>目录: {{ state.stats.folders }}</span></div>
+          <div class="stats-panel glass-card" style="display: flex; align-items: center; justify-content: space-between; padding: clamp(12px, 2vh, 24px) clamp(16px, 4vw, 60px); margin-bottom: clamp(16px, 3vh, 32px); background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.06); border-radius: 18px; position: relative; overflow: hidden;">
+            <!-- 背景微弱扫掠光 -->
+            <div style="position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, rgba(57, 255, 20, 0.2), transparent); animation: scan 4s linear infinite;"></div>
+            <div class="mini-stat" style="flex: 1; display: flex; justify-content: center;"><span class="dot create"></span><span style="font-weight: 800; font-size: clamp(11px, 1.2vw, 13px); letter-spacing: 0.5px; white-space: nowrap;">新建: {{ state.stats.create }}</span></div>
+            <div class="orange-divider"></div>
+            <div class="mini-stat" style="flex: 1; display: flex; justify-content: center;"><span class="dot write"></span><span style="font-weight: 800; font-size: clamp(11px, 1.2vw, 13px); letter-spacing: 0.5px; white-space: nowrap;">修改: {{ state.stats.write }}</span></div>
+            <div class="orange-divider"></div>
+            <div class="mini-stat" style="flex: 1; display: flex; justify-content: center;"><span class="dot remove"></span><span style="font-weight: 800; font-size: clamp(11px, 1.2vw, 13px); letter-spacing: 0.5px; white-space: nowrap;">删除: {{ state.stats.remove }}</span></div>
+            <div class="orange-divider"></div>
+            <div class="mini-stat" style="flex: 1; display: flex; justify-content: center;"><span class="dot folder"></span><span style="font-weight: 800; font-size: clamp(11px, 1.2vw, 13px); letter-spacing: 0.5px; white-space: nowrap;">目录: {{ state.stats.folders }}</span></div>
+          </div>
+
+          <!-- v11.3 旗舰级响应式看板 (Fluid Visuality) -->
+          <div class="live-chart-container glass-card" style="margin-bottom: clamp(20px, 4vh, 36px); padding: clamp(24px, 4vw, 48px); display: flex; flex-direction: column; gap: clamp(16px, 3vh, 32px); background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.04); border-radius: 24px; position: relative; overflow: hidden;">
+            <!-- 度量网格背景 -->
+            <div class="modern-grid-overlay"></div>
+            
+            <div style="display: flex; justify-content: center; position: relative; z-index: 1;">
+              <div style="font-size: clamp(9px, 1vw, 11px); color: #ff9800; font-weight: 900; text-transform: uppercase; letter-spacing: clamp(2px, 0.5vw, 6px); opacity: 1; text-shadow: 0 0 15px rgba(255,152,0,0.4); white-space: nowrap;">Live Dynamic Pulse Matrix</div>
+            </div>
+            
+            <div class="chart-stage" style="display: flex; align-items: flex-end; justify-content: center; gap: clamp(20px, 5vw, 80px); height: clamp(120px, 15vh, 160px); position: relative; z-index: 1; padding: 0 10px;">
+              <div v-for="s in [
+                {key:'create', label:'CREATE', color:'#4ade80'},
+                {key:'write', label:'UPDATE', color:'#60a5fa'},
+                {key:'remove', label:'DELETE', color:'#f87171'},
+                {key:'folders', label:'DIRECTORY', color:'#fbbf24'}
+              ]" :key="s.key" class="chart-item" style="flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: clamp(10px, 2vh, 18px);">
+                <div class="bar-track-capsule" :style="{'--glow-color': s.color, width: 'clamp(20px, 3vw, 32px)', height: '100%'}">
+                  <div class="glow-support"></div>
+                  <div class="bar-fill" 
+                       :style="{ 
+                         height: Math.min(100, (state.stats[s.key] * 6 + 2)) + '%', 
+                         background: `linear-gradient(to top, ${s.color}ee, ${s.color}77)`,
+                         boxShadow: `0 0 25px ${s.color}55, inset 0 0 12px rgba(255,255,255,0.3)`
+                       }"
+                       style="width: 100%; position: absolute; bottom: 0; transition: height 1s cubic-bezier(0.19, 1, 0.22, 1); border-radius: 16px;">
+                    <div style="height: 12px; width: 100%; background: rgba(255,255,255,0.4); border-radius: 16px 16px 0 0; filter: blur(2px);"></div>
+                  </div>
+                </div>
+                <div style="display: flex; flex-direction: column; align-items: center; white-space: nowrap;">
+                  <span style="font-size: clamp(7px, 0.8vw, 9px); font-weight: 900; color: #fff; opacity: 0.6; letter-spacing: 1px;">{{ s.label }}</span>
+                  <span style="font-size: clamp(14px, 2vw, 24px); font-weight: 950; color: #fff; margin-top: 2px; font-family: 'JetBrains Mono', monospace;">{{ state.stats[s.key] }}</span>
+                </div>
+              </div>
+            </div>
           </div>
           <div class="event-scroll">
             <TransitionGroup name="staggered">
@@ -326,7 +488,7 @@ const icons = {
         </div>
 
         <!-- 模块：空间洞察 -->
-        <div v-if="state.activeModule === 'insights' && !state.drilldown.active" class="view-module">
+        <div v-if="state.activeModule === 'insights' && !state.drilldown.active && !state.search.active" class="view-module">
           <div class="section-title">📊 多维分类统计分布</div>
           <div class="insight-card" style="padding: 24px !important;">
             <div class="stat-summary-grid">
@@ -383,7 +545,7 @@ const icons = {
         </div>
 
         <!-- 模块：清理建议 -->
-        <div v-if="state.activeModule === 'cleanup' && !state.drilldown.active" class="view-module">
+        <div v-if="state.activeModule === 'cleanup' && !state.drilldown.active && !state.search.active" class="view-module">
           <div class="section-title">🧹 智能清理建议</div>
           <div v-if="state.cleanupFiles.length > 0" class="cleanup-toolbar glass-effect" style="margin-bottom: 24px; padding: 20px; border-radius: 16px; display: flex; align-items: center; justify-content: space-between; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.08);">
             <div class="toolbar-info">
@@ -417,8 +579,79 @@ const icons = {
           </div>
         </div>
 
+        <div v-if="state.search.active" class="view-module search-view">
+          <div class="search-result-header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
+            <div style="display: flex; align-items: center; gap: 24px;">
+              <div class="back-action-chip" title="退出检索" @click="closeSearch">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+              </div>
+              <div class="search-title-box">
+                <!-- v10.0 再次延长撞色分割线 -->
+                <div style="width: 120px; height: 3px; background: var(--neon-green); margin-bottom: 8px; border-radius: 2px; box-shadow: 0 0 12px rgba(57, 255, 20, 0.5);"></div>
+                <!-- v9.9 暖橙色英文 -->
+                <div style="font-size: 11px; color: #ff9800; opacity: 1; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 6px; font-weight: 800; text-shadow: 0 0 8px rgba(255, 152, 0, 0.2);">Search Analytics Engine</div>
+                <h3 style="margin: 0; font-size: 26px; font-weight: 800; color: #fff;">检索：{{ state.search.query }}</h3>
+              </div>
+            </div>
+            
+            <div style="display: flex; align-items: center; gap: 20px;">
+              <!-- v10.0 多维排序中枢 -->
+              <div class="sort-control-group" style="display: flex; background: rgba(255,255,255,0.04); padding: 4px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.08); backdrop-filter: blur(10px);">
+                <button v-for="s in [
+                          {key:'size', label:'大小'}, 
+                          {key:'time', label:'时间'}, 
+                          {key:'name', label:'名称'}
+                        ]" 
+                        :key="s.key" 
+                        class="sort-tab" 
+                        :class="{ active: state.search.sortBy === s.key }"
+                        style="padding: 8px 16px; border: none; background: transparent; color: #fff; font-size: 12px; font-weight: 700; cursor: pointer; border-radius: 10px; transition: all 0.3s; display: flex; align-items: center; gap: 6px;"
+                        @click="toggleSort(s.key, 'search')">
+                  {{ s.label }}
+                  <span v-if="state.search.sortBy === s.key" style="font-size: 10px; opacity: 0.8;">
+                    {{ state.search.sortOrder === 'desc' ? '▼' : '▲' }}
+                  </span>
+                </button>
+              </div>
+
+              <div class="search-stats-chip" style="display: flex; gap: 12px;">
+                <div class="mini-stat" style="background: rgba(57, 255, 20, 0.05); border: 1px solid rgba(57, 255, 20, 0.2); height: 44px; padding: 0 16px; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                  <span style="opacity: 0.6; font-size: 10px; margin-right: 8px;">关联目录</span>
+                  <span style="color: var(--neon-green); font-weight: 800; font-size: 14px;">{{ searchStats.dirs }}</span>
+                </div>
+                <div class="mini-stat" style="background: rgba(96, 165, 250, 0.05); border: 1px solid rgba(96, 165, 250, 0.2); height: 44px; padding: 0 16px; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                  <span style="opacity: 0.6; font-size: 10px; margin-right: 8px;">匹配文件</span>
+                  <span style="color: #60a5fa; font-weight: 800; font-size: 14px;">{{ searchStats.files }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div v-if="state.search.results.length === 0" class="welcome-view" style="margin-top: 10vh;">
+            未找到匹配的资产项目。试着更换关键词或目标路径。
+          </div>
+          
+          <div v-else class="ranking-list" style="margin-top: 10px;">
+            <div v-for="file in sortedSearchResults" :key="file.path" 
+                 class="glass-card" 
+                 style="padding: 16px 20px; cursor: pointer;"
+                 @click="LocateFile(file.path)">
+              <div class="card-indicator" style="background: var(--neon-green)"></div>
+              <div class="card-body" style="padding: 12px 16px; overflow: hidden;">
+                <div class="card-header">
+                  <span class="op-tag" style="color: var(--neon-green)">SEARCH RESULT</span>
+                  <span class="timestamp">最后修改: {{ file.timeDetail }}</span>
+                </div>
+                <div class="file-name-text" :data-fulltext="file.name" style="font-weight: 800; font-size: 14px; margin-top: 4px;">{{ file.name }}</div>
+                <div class="file-path-text" :data-fulltext="file.path" style="font-size: 10px; opacity: 0.4; margin-top: 2px;">{{ file.path }}</div>
+              </div>
+              <div class="file-size-tag" style="margin-right: 16px; min-width: 90px; text-align: center;">{{ file.size }}</div>
+            </div>
+          </div>
+        </div>
+
         <!-- 模块：安全审计 -->
-        <div v-if="state.activeModule === 'security' && !state.drilldown.active" class="view-module">
+        <div v-if="state.activeModule === 'security' && !state.drilldown.active && !state.search.active" class="view-module">
           <div class="section-title">🛡️ 安全风险审计</div>
           <div class="event-scroll">
             <div v-for="(ev, idx) in state.securityAudit" :key="idx" class="glass-card" style="margin-bottom: 8px;">
@@ -430,20 +663,60 @@ const icons = {
                   <span class="timestamp">{{ ev.time }}</span>
                 </div>
                 <div class="filename" style="margin-top: 6px;">{{ ev.name }}</div>
+                <div class="mini-stat" style="background: rgba(96, 165, 250, 0.05); border: 1px solid rgba(96, 165, 250, 0.2); height: 44px; padding: 0 16px; border-radius: 14px; display: flex; align-items: center; justify-content: center;">
+                  <span style="opacity: 0.6; font-size: 10px; margin-right: 8px;">分类资产</span>
+                  <span style="color: #60a5fa; font-weight: 800; font-size: 14px;">{{ state.drilldown.files.length }}</span>
+                </div>
               </div>
             </div>
           </div>
         </div>
+        <div v-if="state.drilldown.active && !state.search.active" class="view-module drilldown-view">
+          <div class="search-result-header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
+            <div style="display: flex; align-items: center; gap: 24px;">
+              <div class="back-action-chip" title="返回概览" @click="closeDrilldown">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+              </div>
+              <div class="search-title-box">
+                <!-- v10.1 镜像视觉：120px 绿条 -->
+                <div style="width: 120px; height: 3px; background: var(--neon-green); margin-bottom: 8px; border-radius: 2px; box-shadow: 0 0 12px rgba(57, 255, 20, 0.5);"></div>
+                <!-- v10.1 镜像视觉：暖橙色英文 -->
+                <div style="font-size: 11px; color: #ff9800; opacity: 1; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 6px; font-weight: 800; text-shadow: 0 0 8px rgba(255, 152, 0, 0.2);">Classification Insights Engine</div>
+                <h3 style="margin: 0; font-size: 26px; font-weight: 800; color: #fff;">分类：{{ state.drilldown.name }}</h3>
+              </div>
+            </div>
 
-        <!-- 钻取详情试图 (v9.3 对标版) -->
-        <div v-if="state.drilldown.active" class="drilldown-view" style="margin-top: 10px;">
-          <div class="section-title">
-            <button class="back-btn" @click="closeDrilldown">← 返回概览</button>
-            <span>分类检索: {{ state.drilldown.name }}</span>
+            <div style="display: flex; align-items: center; gap: 20px;">
+              <!-- v10.1 对标排序中枢 -->
+              <div class="sort-control-group" style="display: flex; background: rgba(255,255,255,0.04); padding: 4px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.08); backdrop-filter: blur(10px); height: 44px; align-items: center;">
+                <button v-for="s in [
+                          {key:'size', label:'大小'}, 
+                          {key:'time', label:'时间'}, 
+                          {key:'name', label:'名称'}
+                        ]" 
+                        :key="s.key" 
+                        class="sort-tab" 
+                        :class="{ active: state.drilldown.sortBy === s.key }"
+                        style="height: 36px; padding: 0 16px; border: none; background: transparent; color: #fff; font-size: 12px; font-weight: 700; cursor: pointer; border-radius: 10px; transition: all 0.3s; display: flex; align-items: center; gap: 6px;"
+                        @click="toggleSort(s.key, 'drilldown')">
+                  {{ s.label }}
+                  <span v-if="state.drilldown.sortBy === s.key" style="font-size: 10px; opacity: 0.8;">
+                    {{ state.drilldown.sortOrder === 'desc' ? '▼' : '▲' }}
+                  </span>
+                </button>
+              </div>
+
+              <div class="search-stats-chip" style="display: flex; gap: 12px;">
+                <div class="mini-stat" style="background: rgba(96, 165, 250, 0.05); border: 1px solid rgba(96, 165, 250, 0.2); height: 44px; padding: 0 16px; border-radius: 14px; display: flex; align-items: center; justify-content: center;">
+                  <span style="opacity: 0.6; font-size: 10px; margin-right: 8px;">分类资产</span>
+                  <span style="color: #60a5fa; font-weight: 800; font-size: 14px;">{{ state.drilldown.files.length }}</span>
+                </div>
+              </div>
+            </div>
           </div>
           
           <div class="ranking-list" style="margin-top: 24px;">
-            <div v-for="file in state.drilldown.files" :key="file.path" 
+            <div v-for="file in sortedDrilldownFiles" :key="file.path" 
                  class="glass-card" 
                  style="padding: 16px 20px; cursor: pointer;"
                  @click="LocateFile(file.path)">
@@ -453,7 +726,6 @@ const icons = {
                   <span class="op-tag" style="color: var(--neon-green)">FILE ASSET</span>
                   <span class="timestamp">最后修改: {{ file.timeDetail }}</span>
                 </div>
-                <!-- 跑马灯 3.1 强化层 -->
                 <div class="file-name-text" :data-fulltext="file.name" style="font-weight: 800; font-size: 14px; margin-top: 4px;">{{ file.name }}</div>
                 <div class="file-path-text" :data-fulltext="file.path" style="font-size: 10px; opacity: 0.4; margin-top: 2px;">{{ file.path }}</div>
               </div>
@@ -475,7 +747,7 @@ const icons = {
 
 <style scoped>
 .window-content { display: flex; height: 100vh; width: 100vw; user-select: none; background: rgba(0, 0, 0, 0.2); }
-.sidebar { width: 280px; background: rgba(0, 0, 0, 0.3); border-right: 1px solid var(--glass-border); display: flex; flex-direction: column; padding: 32px 24px; backdrop-filter: blur(20px); }
+.sidebar { width: var(--sidebar-width); background: rgba(0, 0, 0, 0.3); border-right: 1px solid var(--glass-border); display: flex; flex-direction: column; padding: clamp(24px, 4vh, 32px) clamp(12px, 1.5vw, 20px); backdrop-filter: blur(20px); flex-shrink: 0; transition: width 0.3s ease; }
 .brand { display: flex; flex-direction: column; align-items: center; gap: 16px; font-size: 20px; font-weight: 800; margin-bottom: 40px; color: var(--neon-green); text-shadow: 0 0 10px rgba(57, 255, 20, 0.3); }
 .logo-stack { position: relative; width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; }
 .outer-ring { animation: rotate 10s linear infinite; transform-origin: center; }
@@ -523,4 +795,31 @@ const icons = {
 .welcome-view { text-align: center; margin-top: 15vh; opacity: 0.8; }
 .hero-icon { color: var(--accent-primary); margin-bottom: 24px; animation: float 3s ease-in-out infinite; }
 @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+
+.sort-tab.active {
+  background: var(--neon-green) !important;
+  color: #000 !important;
+  box-shadow: 0 0 12px var(--neon-green);
+}
+
+.sort-tab:hover:not(.active) {
+  background: rgba(255,255,255,0.1) !important;
+}
+
+/* 底部快速导航感应器 (v9.6) */
+.bottom-navigator {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 48px;
+  z-index: 5;
+  cursor: pointer;
+  background: linear-gradient(to top, rgba(57, 255, 20, 0.05), transparent);
+  pointer-events: all;
+  transition: background 0.3s;
+}
+.bottom-navigator:hover {
+  background: linear-gradient(to top, rgba(57, 255, 20, 0.12), transparent);
+}
 </style>

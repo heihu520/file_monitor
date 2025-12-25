@@ -46,6 +46,7 @@ export namespace main {
 	    size: string;
 	    bytes: number;
 	    timeDetail: string;
+	    timestamp: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new FileStat(source);
@@ -58,6 +59,7 @@ export namespace main {
 	        this.size = source["size"];
 	        this.bytes = source["bytes"];
 	        this.timeDetail = source["timeDetail"];
+	        this.timestamp = source["timestamp"];
 	    }
 	}
 

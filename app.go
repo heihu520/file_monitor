@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -39,7 +40,13 @@ type FileStat struct {
 	Path       string `json:"path"`
 	Size       string `json:"size"`
 	Bytes      int64  `json:"bytes"`
-	TimeDetail string `json:"timeDetail"` // 新增：毫秒级时间字符串
+	TimeDetail string `json:"timeDetail"`
+	Timestamp  int64  `json:"timestamp"` // 新增：Unix 时间戳用于高精度排序 (v10.0)
+}
+
+// AppConfig 配置存储 (v9.6)
+type AppConfig struct {
+	LastPath string `json:"lastPath"`
 }
 
 // App struct
@@ -109,6 +116,7 @@ func (a *App) SelectFolder() (string, error) {
 		if err != nil {
 			return "", err
 		}
+		a.SaveLastPath(path) // 选择后自动保存路径 (v9.6)
 		return path, nil
 	}
 	return "", nil
@@ -216,6 +224,7 @@ func (a *App) GetTopFiles(path string) ([]FileStat, error) {
 			Size:       a.formatSize(info.Size()),
 			Bytes:      info.Size(),
 			TimeDetail: info.ModTime().Format("15:04:05.000"),
+			Timestamp:  info.ModTime().Unix(),
 		})
 		return nil
 	})
@@ -283,6 +292,7 @@ func (a *App) GetFilesByExts(path string, exts []string) ([]FileStat, error) {
 				Size:       a.formatSize(info.Size()),
 				Bytes:      info.Size(),
 				TimeDetail: info.ModTime().Format("15:04:05.000"),
+				Timestamp:  info.ModTime().Unix(),
 			})
 		}
 		return nil
@@ -302,6 +312,47 @@ func (a *App) GetFilesByExts(path string, exts []string) ([]FileStat, error) {
 // GetFilesByExt 获取指定目录下所有匹配扩展名的文件列表
 func (a *App) GetFilesByExt(path string, ext string) ([]FileStat, error) {
 	return a.GetFilesByExts(path, []string{ext})
+}
+
+// SearchFiles 在指定目录下递归搜索匹配的文件 (v9.5)
+func (a *App) SearchFiles(path string, query string) ([]FileStat, error) {
+	if query == "" {
+		return []FileStat{}, nil
+	}
+	results := make([]FileStat, 0)
+	queryLower := strings.ToLower(query)
+
+	err := filepath.Walk(path, func(walkPath string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		if strings.Contains(strings.ToLower(info.Name()), queryLower) {
+			results = append(results, FileStat{
+				Name:       info.Name(),
+				Path:       walkPath,
+				Size:       a.formatSize(info.Size()),
+				Bytes:      info.Size(),
+				TimeDetail: info.ModTime().Format("15:04:05.000"),
+				Timestamp:  info.ModTime().Unix(),
+			})
+		}
+		// 限制结果数量，防止大数据量下的 UI 卡顿
+		if len(results) >= 100 {
+			return filepath.SkipDir
+		}
+		return nil
+	})
+
+	// 按大小降序排序
+	for i := 0; i < len(results); i++ {
+		for j := i + 1; j < len(results); j++ {
+			if results[i].Bytes < results[j].Bytes {
+				results[i], results[j] = results[j], results[i]
+			}
+		}
+	}
+
+	return results, err
 }
 
 // ExecuteCleanup 执行物理删除
@@ -385,4 +436,36 @@ func (a *App) formatSize(bytes int64) string {
 // Greet returns a greeting for the given name
 func (a *App) Greet(name string) string {
 	return fmt.Sprintf("Hello %s, It's show time!", name)
+}
+
+// GetLastPath 获取上次存储的路径 (v9.6)
+func (a *App) GetLastPath() string {
+	configPath := "app_config.json"
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return ""
+	}
+	var config AppConfig
+	if err := json.Unmarshal(data, &config); err != nil {
+		return ""
+	}
+	return config.LastPath
+}
+
+// SaveLastPath 存储当前路径 (v9.6)
+func (a *App) SaveLastPath(path string) {
+	configPath := "app_config.json"
+	config := AppConfig{LastPath: path}
+	data, err := json.Marshal(config)
+	if err == nil {
+		_ = os.WriteFile(configPath, data, 0644)
+	}
+}
+
+// StartAutoMonitor 为启动时准备的接口 (v9.6)
+func (a *App) StartAutoMonitor(path string) error {
+	if path == "" {
+		return fmt.Errorf("path is empty")
+	}
+	return a.addRecursive(path)
 }

@@ -8,9 +8,12 @@
     --card-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
     --blur-radius: 50px;
     --card-radius: 12px;
-    --main-padding: 32px;
+    --main-padding: clamp(16px, 3vw, 32px);
+    /* 流体内边距 */
     --neon-green: #39ff14;
     --neon-glow: 0 0 15px rgba(57, 255, 20, 0.4);
+    --sidebar-width: clamp(240px, 20vw, 280px);
+    /* 提升底限至 240px 以防截断 */
 }
 
 * {
@@ -55,6 +58,16 @@ body {
 
     to {
         transform: rotate(360deg);
+    }
+}
+
+@keyframes scan {
+    from {
+        left: -100%;
+    }
+
+    to {
+        left: 100%;
     }
 }
 
@@ -131,16 +144,18 @@ body {
     transition: all 0.3s;
 }
 
-/* 侧边栏重构 (v8.4.1) */
+/* 侧边栏重构 (v11.3 流态响应式) */
 .sidebar {
-    width: 280px;
-    /* 稍微增加宽度以适应居中布局 */
+    width: var(--sidebar-width);
+    flex-shrink: 0;
     background: rgba(0, 0, 0, 0.4);
     border-right: 1px solid rgba(57, 255, 20, 0.15);
     display: flex;
     flex-direction: column;
-    padding: 32px 24px;
+    padding: clamp(20px, 3vh, 32px) clamp(12px, 1.5vw, 20px);
+    /* 适度减少左右 padding 给文字让位 */
     backdrop-filter: blur(40px);
+    transition: width 0.3s ease;
 }
 
 .nav-stack {
@@ -299,16 +314,31 @@ body {
     overflow-y: auto;
     overflow-x: hidden;
     padding: 24px var(--main-padding);
-    /* 隐藏滚动条但保留滚动 (v9.4) */
-    scrollbar-width: none;
-    /* Firefox */
-    -ms-overflow-style: none;
-    /* IE/Edge */
 }
 
+/* Neon 感应滚动条 (v9.5) */
 .viewport::-webkit-scrollbar {
-    display: none;
-    /* Chrome/Safari */
+    width: 6px;
+}
+
+.viewport::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.viewport::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 10px;
+}
+
+.viewport:hover::-webkit-scrollbar-thumb {
+    background: rgba(57, 255, 20, 0.2);
+    /* 悬浮容器时显示很淡的荧光 */
+}
+
+.viewport::-webkit-scrollbar-thumb:hover {
+    background: var(--neon-green) !important;
+    /* 直接指向滚动条时高亮 */
+    box-shadow: 0 0 10px var(--neon-green);
 }
 
 /* 通用玻璃卡片 */
@@ -324,6 +354,54 @@ body {
     width: 100%;
 }
 
+/* v11.1 暖橙色垂直分隔线 (精修对标) */
+.orange-divider {
+    width: 2px;
+    height: 24px;
+    background: linear-gradient(to bottom, transparent, #ff9800, transparent);
+    box-shadow: 0 0 8px rgba(255, 152, 0, 0.6);
+    opacity: 0.8;
+    border-radius: 2px;
+}
+
+/* 现代感图表组件 (v11.2 超广域对标) */
+.bar-track-capsule {
+    width: 32px;
+    /* 再次加宽 */
+    height: 120px;
+    /* 增加高度 */
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 16px;
+    position: relative;
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    box-shadow: inset 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.modern-grid-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image:
+        linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+    background-size: 20px 20px;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.glow-support {
+    position: absolute;
+    bottom: -6px;
+    width: 140%;
+    left: -20%;
+    height: 12px;
+    background: radial-gradient(circle, var(--glow-color) 0%, transparent 70%);
+    filter: blur(6px);
+    opacity: 0.5;
+}
+
 .glass-card:hover {
     background: rgba(255, 255, 255, 0.06);
     border-color: var(--accent-primary);
@@ -331,14 +409,15 @@ body {
     box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
 }
 
-/* 磁盘态势图/洞察卡片解压 (v8.6) */
+/* 磁盘态势图/洞察卡片响应式重构 (v11.3) */
 .disk-status,
 .insight-card {
-    padding: 32px !important;
+    padding: clamp(16px, 2.5vw, 32px) !important;
     background: rgba(0, 0, 0, 0.2) !important;
     border-radius: 20px !important;
     border: 1px solid rgba(255, 255, 255, 0.1) !important;
-    margin-bottom: 32px;
+    margin-bottom: clamp(16px, 3vh, 32px);
+    width: 100%;
 }
 
 /* 模块化图例对标版 (v9.3) */
@@ -411,25 +490,32 @@ body {
 }
 
 .stat-module {
+    padding: clamp(12px, 2vh, 20px);
+    /* Optimized padding */
+    border-radius: 12px;
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid var(--glass-border);
-    padding: 16px;
-    border-radius: 12px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
     transition: all 0.3s;
+    display: flex;
+    /* Preserved from original */
+    flex-direction: column;
+    /* Preserved from original */
+    align-items: center;
+    /* Preserved from original */
+    gap: 4px;
+    /* Preserved from original */
 }
 
 .stat-module:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.06);
+    /* Changed from 0.05 */
     border-color: rgba(255, 255, 255, 0.2);
     transform: translateY(-2px);
 }
 
 .stat-module .val {
-    font-size: 18px;
+    font-size: clamp(16px, 2.5vw, 18px);
+    /* Optimized font size */
     font-weight: 800;
     color: var(--neon-green);
 }
@@ -535,23 +621,36 @@ body {
     }
 }
 
-.back-btn {
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.15);
+/* 统一返回动作芯片 (v9.8) */
+.back-action-chip {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     color: #fff;
-    padding: 8px 16px;
-    border-radius: 8px;
-    font-size: 12px;
-    font-weight: 600;
+    padding: 10px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     cursor: pointer;
-    margin-right: 20px;
-    transition: all 0.3s;
-    backdrop-filter: blur(10px);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    backdrop-filter: blur(20px);
+    width: 44px;
+    height: 44px;
 }
 
-.back-btn:hover {
+.back-action-chip:hover {
+    background: rgba(57, 255, 20, 0.1);
     border-color: var(--neon-green);
-    box-shadow: 0 0 10px rgba(57, 255, 20, 0.3);
+    transform: scale(1.05);
+    box-shadow: 0 0 15px rgba(57, 255, 20, 0.2);
+}
+
+.back-action-chip svg {
+    transition: transform 0.3s;
+}
+
+.back-action-chip:hover svg {
+    transform: translateX(-2px);
 }
 
 /* 响应式断点 */

@@ -12,6 +12,8 @@ export function GetFilesByExt(arg1:string,arg2:string):Promise<Array<main.FileSt
 
 export function GetFilesByExts(arg1:string,arg2:Array<string>):Promise<Array<main.FileStat>>;
 
+export function GetLastPath():Promise<string>;
+
 export function GetSecurityAudit():Promise<Array<Record<string, any>>>;
 
 export function GetTopFiles(arg1:string):Promise<Array<main.FileStat>>;
@@ -20,6 +22,12 @@ export function Greet(arg1:string):Promise<string>;
 
 export function LocateFile(arg1:string):Promise<void>;
 
+export function SaveLastPath(arg1:string):Promise<void>;
+
 export function ScanCleanup(arg1:string):Promise<Array<main.FileStat>>;
 
+export function SearchFiles(arg1:string,arg2:string):Promise<Array<main.FileStat>>;
+
 export function SelectFolder():Promise<string>;
+
+export function StartAutoMonitor(arg1:string):Promise<void>;

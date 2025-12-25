@@ -22,6 +22,10 @@ export function GetFilesByExts(arg1, arg2) {
   return window['go']['main']['App']['GetFilesByExts'](arg1, arg2);
 }
 
+export function GetLastPath() {
+  return window['go']['main']['App']['GetLastPath']();
+}
+
 export function GetSecurityAudit() {
   return window['go']['main']['App']['GetSecurityAudit']();
 }
@@ -38,10 +42,22 @@ export function LocateFile(arg1) {
   return window['go']['main']['App']['LocateFile'](arg1);
 }
 
+export function SaveLastPath(arg1) {
+  return window['go']['main']['App']['SaveLastPath'](arg1);
+}
+
 export function ScanCleanup(arg1) {
   return window['go']['main']['App']['ScanCleanup'](arg1);
 }
 
+export function SearchFiles(arg1, arg2) {
+  return window['go']['main']['App']['SearchFiles'](arg1, arg2);
+}
+
 export function SelectFolder() {
   return window['go']['main']['App']['SelectFolder']();
+}
+
+export function StartAutoMonitor(arg1) {
+  return window['go']['main']['App']['StartAutoMonitor'](arg1);
 }
