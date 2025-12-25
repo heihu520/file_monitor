@@ -2,7 +2,7 @@
 import { reactive, onMounted, ref, computed, watch } from 'vue'
 import { 
   SelectFolder, GetDiskInfo, GetDirectoryInsight, LocateFile,
-  GetTopFiles, ScanCleanup, ExecuteCleanup, GetSecurityAudit 
+  GetTopFiles, ScanCleanup, ExecuteCleanup, GetSecurityAudit, GetFilesByExt 
 } from '../wailsjs/go/main/App'
 import { EventsOn } from '../wailsjs/runtime/runtime'
 
@@ -20,7 +20,8 @@ const state = reactive({
   securityAudit: [],
   isScanning: false,
   isCleaning: false,
-  scanProgress: { scanned: 0, current: '' }
+  scanProgress: { scanned: 0, current: '' },
+  drilldown: { active: false, ext: '', name: '', files: [] } // 新增钻取状态
 })
 
 // 计算属性
@@ -64,12 +65,25 @@ const insightSegments = computed(() => {
   const other = total - code - office - imgs - vids
 
   return [
-    { type: 'code', label: '代码', color: '#a855f7', width: (code / total * 100) + '%' },
-    { type: 'office', label: '办公', color: '#f97316', width: (office / total * 100) + '%' },
-    { type: 'img', label: '图片', color: '#60a5fa', width: (imgs / total * 100) + '%' },
-    { type: 'vid', label: '媒体', color: '#f87171', width: (vids / total * 100) + '%' },
-    { type: 'other', label: '其他', color: '#94a3b8', width: (other / total * 100) + '%' }
+    { type: 'code', label: '代码', color: '#a855f7', icon: 'M16 18l6-6-6-6M8 6l-6 6 6 6', width: (code / total * 100) + '%' },
+    { type: 'office', label: '办公', color: '#f97316', icon: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z', width: (office / total * 100) + '%' },
+    { type: 'img', label: '图片', color: '#60a5fa', icon: 'M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z', width: (imgs / total * 100) + '%' },
+    { type: 'vid', label: '媒体', color: '#f87171', icon: 'M23 7l-7 5 7 5V7zM1 5h11v14H1z', width: (vidExts / total * 100) + '%' },
+    { type: 'other', label: '其他', color: '#94a3b8', icon: 'M12 2v20M2 12h20', width: (other / total * 100) + '%' }
   ].filter(s => parseFloat(s.width) > 0)
+})
+
+const selectedCleanupFiles = computed(() => Array.from(state.cleanupSelected))
+const totalCleanupSize = computed(() => {
+  const bytes = state.cleanupFiles
+    .filter(f => state.cleanupSelected.has(f.path))
+    .reduce((acc, f) => acc + (f.bytes || 0), 0)
+  
+  // 简易 formatSize 逻辑 (前端版)
+  if (bytes === 0) return '0 B'
+  const k = 1024; const dm = 2; const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i]
 })
 
 // 核心逻辑
@@ -146,6 +160,26 @@ onMounted(() => {
   })
 })
 
+// 分类钻取逻辑 (v8.4)
+const handleDrilldown = async (item) => {
+  state.isScanning = true
+  try {
+    const files = await GetFilesByExt(state.monitoredPath, item.ext)
+    state.drilldown = {
+      active: true,
+      ext: item.ext,
+      name: item.name,
+      files: files
+    }
+  } finally {
+    state.isScanning = false
+  }
+}
+
+const closeDrilldown = () => {
+  state.drilldown.active = false
+}
+
 const icons = {
   activity: 'M22 12h-4l-3 9L9 3l-3 9H2',
   insights: 'M21.21 15.89A10 10 0 1 1 8 2.83M22 12A10 10 0 0 0 12 2v10z',
@@ -160,30 +194,49 @@ const icons = {
   <div class="window-content">
     <aside class="sidebar">
       <div class="brand">
-        <div class="logo-orb"></div>
+        <!-- v8.5 炫酷 SVG Logo -->
+        <div class="logo-stack">
+          <svg viewBox="0 0 100 100" width="48" height="48" class="main-logo">
+            <defs>
+              <linearGradient id="logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#0078d4;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#39ff14;stop-opacity:1" />
+              </linearGradient>
+            </defs>
+            <circle cx="50" cy="50" r="45" fill="none" stroke="url(#logo-grad)" stroke-width="2" stroke-dasharray="10 5" class="outer-ring"/>
+            <path d="M30 50 Q 40 20, 50 50 T 70 50" fill="none" stroke="#39ff14" stroke-width="4" stroke-linecap="round" class="pulse-line"/>
+            <rect x="42" y="42" width="16" height="16" rx="4" fill="#0078d4" class="core-box"/>
+          </svg>
+        </div>
         <span>Monitor Pro</span>
       </div>
 
-      <div class="disk-status">
-        <div class="disk-info-header"><span>磁盘态势感知</span><span>{{ Math.round(state.disk.usage) || 0 }}%</span></div>
+      <div class="disk-status neon-border">
+        <div class="disk-info-header">
+          <div class="disk-title-group">
+            <div class="radar-icon"></div>
+            <span>磁盘态势感知</span>
+          </div>
+          <span style="color: var(--neon-green)">{{ Math.round(state.disk.usage) || 0 }}%</span>
+        </div>
         <div class="progress-container">
           <div class="progress-bar" :style="{ width: state.disk.usage + '%' }"></div>
         </div>
-        <div class="disk-detail-grid">
-          <div class="detail-item">
-            <span class="detail-label">已使用空间</span>
-            <span class="detail-value">{{ state.disk.used || '0 B' }}</span>
+        <div class="disk-detail-grid" style="margin-top: 24px; display: flex; flex-direction: column; gap: 12px;">
+          <div class="detail-item" style="display: flex; justify-content: space-between; align-items: center;">
+            <span class="detail-label" style="font-size: 11px; opacity: 0.6;">已使用空间</span>
+            <span class="detail-value used-val" style="font-size: 15px; font-weight: 800; color: var(--neon-green);">{{ state.disk.used || '0 B' }}</span>
           </div>
-          <div class="detail-item">
-            <span class="detail-label">可用剩余</span>
-            <span class="detail-value">{{ state.disk.free || '0 B' }}</span>
+          <div class="detail-item" style="display: flex; justify-content: space-between; align-items: center;">
+            <span class="detail-label" style="font-size: 11px; opacity: 0.6;">可用剩余</span>
+            <span class="detail-value free-val" style="font-size: 15px; font-weight: 800; color: #3b82f6;">{{ state.disk.free || '0 B' }}</span>
           </div>
         </div>
       </div>
 
       <nav class="nav-stack">
         <div v-for="m in ['activity', 'insights', 'cleanup', 'security']" :key="m" 
-             class="nav-item" :class="{ active: state.activeModule === m }" @click="state.activeModule = m">
+             class="nav-item neon-item" :class="{ active: state.activeModule === m }" @click="state.activeModule = m; closeDrilldown()">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
             <path v-if="m==='activity'" :d="icons.activity"/><path v-else-if="m==='insights'" :d="icons.insights"/>
             <path v-else-if="m==='cleanup'" :d="icons.cleanup"/><path v-else :d="icons.security"/>
@@ -193,7 +246,7 @@ const icons = {
       </nav>
 
       <div class="sidebar-footer" style="margin-top: auto;">
-        <button class="action-btn" @click="handleSelectFolder">
+        <button class="action-btn neon-btn" @click="handleSelectFolder">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
           更换分析目标
         </button>
@@ -227,7 +280,14 @@ const icons = {
         </div>
 
         <!-- 模块：实时活动 -->
-        <div v-if="state.activeModule === 'activity'" class="view-module">
+        <div v-if="state.activeModule === 'activity' && !state.drilldown.active" class="view-module">
+          <!-- 实时监控呼吸指示器 (v8.3) -->
+          <div class="monitoring-status">
+            <div class="pulse-dot"></div>
+            <span class="status-label">ENGINE ACTIVE</span>
+            <span class="status-text">实时防御保护中</span>
+          </div>
+
           <div class="stats-panel" style="display: flex; gap: 20px; padding: 12px; margin-bottom: 20px;">
             <div class="mini-stat"><span class="dot create"></span><span>新建: {{ state.stats.create }}</span></div>
             <div class="mini-stat"><span class="dot write"></span><span>修改: {{ state.stats.write }}</span></div>
@@ -248,16 +308,30 @@ const icons = {
         </div>
 
         <!-- 模块：空间洞察 -->
-        <div v-if="state.activeModule === 'insights'" class="view-module">
+        <div v-if="state.activeModule === 'insights' && !state.drilldown.active" class="view-module">
           <div class="section-title">📊 多维分类统计分布</div>
-          <div class="insight-card disk-status" style="background: rgba(255,255,255,0.01);">
-            <div class="disk-info-header"><span>资产总数: {{ state.insight.fileCount }} | 目录深度: {{ state.insight.dirCount }}</span><span>归档总体积: {{ state.insight.totalSize }}</span></div>
-            <div class="insight-bar">
+          <div class="insight-card" style="padding: 24px !important;">
+            <div class="stat-summary-grid">
+              <div class="stat-module">
+                <span class="val">{{ state.insight.fileCount }}</span>
+                <span class="lab">资产总数</span>
+              </div>
+              <div class="stat-module">
+                <span class="val">{{ state.insight.dirCount }}</span>
+                <span class="lab">目录深度</span>
+              </div>
+              <div class="stat-module">
+                <span class="val" style="color: #60a5fa;">{{ state.insight.totalSize }}</span>
+                <span class="lab">总体积</span>
+              </div>
+            </div>
+            <div class="insight-bar" style="margin-top: 10px;">
               <div v-for="seg in insightSegments" :key="seg.type" class="insight-segment" :class="seg.type" :style="{ width: seg.width }"></div>
             </div>
-            <div class="disk-detail" style="font-size: 10px; flex-wrap: wrap; gap: 8px;">
-              <span v-for="seg in insightSegments" :key="seg.type" :style="{ color: seg.color }">
-                ● {{ seg.label }}
+            <div class="disk-detail" style="font-size: 11px; flex-wrap: wrap; gap: 16px; margin-top: 20px;">
+              <span v-for="seg in insightSegments" :key="seg.type" :style="{ color: seg.color, display: 'flex', alignItems: 'center', gap: '6px' }">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path :d="seg.icon"/></svg>
+                <span style="font-weight: 600;">{{ seg.label }}</span>
               </span>
             </div>
           </div>
@@ -266,14 +340,14 @@ const icons = {
           <div class="section-title" style="margin-top: 32px;">💻 编程语言独立分布 (20+ 识别)</div>
           <div v-if="languageStats.length === 0" class="welcome-view" style="padding: 20px; font-size: 12px; height: auto;">未检测到主流开发代码资产</div>
           <div v-else class="extension-grid">
-            <div v-for="item in languageStats" :key="item.ext" class="ext-chip">
+            <div v-for="item in languageStats" :key="item.ext" class="ext-chip drillable" @click="handleDrilldown(item)">
               <span class="ext-name">{{ item.name }}</span>
               <span class="ext-count">{{ item.count }}</span>
             </div>
           </div>
 
           <div class="section-title" style="margin-top: 32px;">🔥 冗余及核心资产排行 (TOP 20)</div>
-          <div class="layout-grid">
+          <div class="ranking-list">
             <div v-for="file in state.topFiles" :key="file.path" class="large-file-item glass-card" @click="LocateFile(file.path)">
               <div class="file-info" style="padding: 12px; flex: 1; overflow: hidden;">
                 <div class="file-name-text" :data-fulltext="file.name" style="font-weight: 700; font-size: 14px;">{{ file.name }}</div>
@@ -286,21 +360,31 @@ const icons = {
         </div>
 
         <!-- 模块：清理建议 -->
-        <div v-if="state.activeModule === 'cleanup'" class="view-module">
+        <div v-if="state.activeModule === 'cleanup' && !state.drilldown.active" class="view-module">
           <div class="section-title">🧹 智能清理建议</div>
+          <div v-if="state.cleanupFiles.length > 0" class="cleanup-toolbar glass-effect" style="margin-bottom: 24px; padding: 20px; border-radius: 16px; display: flex; align-items: center; justify-content: space-between; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.08);">
+            <div class="toolbar-info">
+              <div style="font-size: 11px; opacity: 0.5; margin-bottom: 4px; text-transform: uppercase;">Storage Cleanup Task</div>
+              <span style="font-size: 14px; font-weight: 600;">已扫描到 {{ state.cleanupFiles.length }} 项冗余 | 可释放: <span style="color: var(--neon-green)">{{ totalCleanupSize }}</span></span>
+            </div>
+            <div class="module-btn-group">
+              <button class="module-btn primary" @click="handleExecuteCleanup" :disabled="state.cleanupSelected.size === 0">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                一键清理
+              </button>
+              <button class="module-btn" @click="state.cleanupSelected.clear()">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3zM9 9l6 6m0-6l-6 6"/></svg>
+                清空选择
+              </button>
+            </div>
+          </div>
           <div v-if="state.cleanupFiles.length === 0" class="welcome-view">系统非常整洁，暂无清理建议</div>
           <div v-else>
-            <div class="button-group" style="margin-bottom: 20px;">
-              <button class="ghost-btn primary" @click="handleCleanup" :disabled="state.cleanupSelected.size === 0">
-                一键清理选中 ({{ state.cleanupSelected.size }} 个文件)
-              </button>
-              <button class="ghost-btn" @click="state.cleanupSelected.clear()">取消选择</button>
-            </div>
             <div class="layout-grid">
               <div v-for="file in state.cleanupFiles" :key="file.path" class="cleanup-card glass-card" 
                    @click="state.cleanupSelected.has(file.path)?state.cleanupSelected.delete(file.path):state.cleanupSelected.add(file.path)">
                 <input type="checkbox" class="cleanup-check" :checked="state.cleanupSelected.has(file.path)" />
-                <div class="file-info" style="flex: 1">
+                <div class="file-info" style="flex: 1; min-width: 0;">
                   <div class="file-name-text" :data-fulltext="file.name">{{ file.name }}</div>
                   <div class="file-path-text" :data-fulltext="file.path">{{ file.path }}</div>
                 </div>
@@ -311,7 +395,7 @@ const icons = {
         </div>
 
         <!-- 模块：安全审计 -->
-        <div v-if="state.activeModule === 'security'" class="view-module">
+        <div v-if="state.activeModule === 'security' && !state.drilldown.active" class="view-module">
           <div class="section-title">🛡️ 安全风险审计</div>
           <div class="event-scroll">
             <div v-for="(ev, idx) in state.securityAudit" :key="idx" class="glass-card" style="margin-bottom: 8px;">
@@ -324,6 +408,24 @@ const icons = {
                 </div>
                 <div class="filename" style="margin-top: 6px;">{{ ev.name }}</div>
               </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 钻取详情试图 (v8.4) -->
+        <div v-if="state.drilldown.active" class="drilldown-view">
+          <div class="section-title">
+            <button class="back-btn" @click="closeDrilldown">← 返回指标面板</button>
+            <span>分类详情: {{ state.drilldown.name }} ({{ state.drilldown.ext }})</span>
+          </div>
+          <div class="ranking-list" style="margin-top: 20px;">
+            <div v-for="file in state.drilldown.files" :key="file.path" class="large-file-item glass-card" @click="LocateFile(file.path)">
+              <div class="file-info" style="padding: 12px; flex: 1; overflow: hidden;">
+                <div class="file-name-text" :data-fulltext="file.name" style="font-weight: 700; font-size: 14px;">{{ file.name }}</div>
+                <div class="file-path-text" :data-fulltext="file.path" style="margin-top: 4px; opacity: 0.5;">{{ file.path }}</div>
+                <div class="timestamp" style="margin-top: 8px; font-size: 10px; opacity: 0.8;">最后修改: {{ file.timeDetail }}</div>
+              </div>
+              <div class="file-size-tag" style="margin-right: 16px; min-width: 80px; text-align: center;">{{ file.size }}</div>
             </div>
           </div>
         </div>
@@ -341,9 +443,17 @@ const icons = {
 
 <style scoped>
 .window-content { display: flex; height: 100vh; width: 100vw; user-select: none; background: rgba(0, 0, 0, 0.2); }
-.sidebar { width: 260px; background: rgba(0, 0, 0, 0.3); border-right: 1px solid var(--glass-border); display: flex; flex-direction: column; padding: 32px 20px; backdrop-filter: blur(20px); }
-.brand { display: flex; align-items: center; gap: 12px; font-size: 20px; font-weight: 700; margin-bottom: 32px; }
-.logo-orb { width: 28px; height: 28px; background: linear-gradient(135deg, #0078d4, #00bcf2); border-radius: 8px; box-shadow: 0 4px 12px rgba(0, 120, 212, 0.4); }
+.sidebar { width: 280px; background: rgba(0, 0, 0, 0.3); border-right: 1px solid var(--glass-border); display: flex; flex-direction: column; padding: 32px 24px; backdrop-filter: blur(20px); }
+.brand { display: flex; flex-direction: column; align-items: center; gap: 16px; font-size: 20px; font-weight: 800; margin-bottom: 40px; color: var(--neon-green); text-shadow: 0 0 10px rgba(57, 255, 20, 0.3); }
+.logo-stack { position: relative; width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; }
+.outer-ring { animation: rotate 10s linear infinite; transform-origin: center; }
+.pulse-line { stroke-dasharray: 100; stroke-dashoffset: 100; animation: dash 2s ease-in-out infinite; }
+@keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes dash { 0% { stroke-dashoffset: 100; opacity: 0.3; } 50% { stroke-dashoffset: 0; opacity: 1; } 100% { stroke-dashoffset: -100; opacity: 0.3; } }
+.main-logo { filter: drop-shadow(0 0 8px rgba(0, 120, 212, 0.5)); transition: all 0.5s; }
+.logo-stack:hover .main-logo { transform: scale(1.1); filter: drop-shadow(0 0 15px var(--neon-green)); }
+.core-box { animation: breathe 3s ease-in-out infinite; transform-origin: center; }
+@keyframes breathe { 0%, 100% { transform: scale(1); opacity: 0.8; } 50% { transform: scale(1.1); opacity: 1; } }
 .stats-panel { border-radius: 12px; border: 1px solid var(--glass-border); background: rgba(255, 255, 255, 0.05); }
 .mini-stat { display: flex; align-items: center; gap: 6px; font-size: 11px; }
 .dot { width: 6px; height: 6px; border-radius: 50%; }

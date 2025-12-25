@@ -258,6 +258,42 @@ func (a *App) ScanCleanup(path string) ([]FileStat, error) {
 	return redundant, err
 }
 
+// GetFilesByExt 获取指定目录下所有匹配扩展名的文件列表
+func (a *App) GetFilesByExt(path string, ext string) ([]FileStat, error) {
+	files := make([]FileStat, 0)
+	targetExt := strings.ToLower(ext)
+
+	err := filepath.Walk(path, func(walkPath string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if !info.IsDir() {
+			fExt := strings.ToLower(filepath.Ext(walkPath))
+			if fExt == targetExt || (targetExt == "其他" && fExt == "") {
+				files = append(files, FileStat{
+					Name:       info.Name(),
+					Path:       walkPath,
+					Size:       a.formatSize(info.Size()),
+					Bytes:      info.Size(),
+					TimeDetail: info.ModTime().Format("15:04:05.000"),
+				})
+			}
+		}
+		return nil
+	})
+
+	// 按大小降序排序
+	for i := 0; i < len(files); i++ {
+		for j := i + 1; j < len(files); j++ {
+			if files[i].Bytes < files[j].Bytes {
+				files[i], files[j] = files[j], files[i]
+			}
+		}
+	}
+
+	return files, err
+}
+
 // ExecuteCleanup 执行物理删除
 func (a *App) ExecuteCleanup(paths []string) error {
 	for _, p := range paths {

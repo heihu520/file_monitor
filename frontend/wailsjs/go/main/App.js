@@ -14,6 +14,10 @@ export function GetDiskInfo(arg1) {
   return window['go']['main']['App']['GetDiskInfo'](arg1);
 }
 
+export function GetFilesByExt(arg1, arg2) {
+  return window['go']['main']['App']['GetFilesByExt'](arg1, arg2);
+}
+
 export function GetSecurityAudit() {
   return window['go']['main']['App']['GetSecurityAudit']();
 }

@@ -8,6 +8,8 @@ export function GetDirectoryInsight(arg1:string):Promise<main.DirInsight>;
 
 export function GetDiskInfo(arg1:string):Promise<main.DiskInfo>;
 
+export function GetFilesByExt(arg1:string,arg2:string):Promise<Array<main.FileStat>>;
+
 export function GetSecurityAudit():Promise<Array<Record<string, any>>>;
 
 export function GetTopFiles(arg1:string):Promise<Array<main.FileStat>>;
